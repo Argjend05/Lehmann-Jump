@@ -5,7 +5,7 @@
 // Configuration
 const CONFIG = {
     fps: 60,
-    physicsStepsPerFrame: 3, // Makes the fluid fall faster and feel more responsive
+    physicsStepsPerFrame: 1, // Slowed down for better playability
     glowEffects: true
 };
 
@@ -45,6 +45,8 @@ let gravity = { x: 0, y: 1 };
 let isPlaying = false;
 let currentLevelNum = 1;
 let levelComplete = false;
+let totalSwitches = 0;
+let activatedSwitches = new Set();
 
 // Initialize DOM and Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
@@ -194,9 +196,17 @@ function loadLevel(num) {
     initGrid(w, h);
     computeOffsets();
     
+    totalSwitches = 0;
+    activatedSwitches.clear();
+    
     for (let y = 0; y < map.length; y++) {
         for (let x = 0; x < map[0].length; x++) {
             let char = map[y][x] || ' ';
+            let currentSwitchId = 0;
+            if (char === 'X') {
+                totalSwitches++;
+                currentSwitchId = totalSwitches;
+            }
             
             for (let dy = 0; dy < expandFactor; dy++) {
                 for (let dx = 0; dx < expandFactor; dx++) {
@@ -210,12 +220,13 @@ function loadLevel(num) {
                         // Place spawner in a 2x2 core to avoid huge spawn blocks
                         if (dx >= 1 && dx <= 2 && dy >= 1 && dy <= 2) {
                             cell.type = TYPE.SPAWNER; 
-                            cell.params = { amount: 1200 }; // Ensure plenty of fluid
+                            cell.params = { amount: 1500 }; // Ensure plenty of fluid
                         }
                     } else if (char === 'X') {
                         // Switch pad
                         if (dx >= 1 && dx <= 2 && dy >= 1 && dy <= 2) {
                             cell.type = TYPE.SWITCH_OFF;
+                            cell.switchId = currentSwitchId;
                         }
                     } else if (char === '~') {
                         // Hazard block
@@ -255,8 +266,22 @@ function handleCollisionInteraction(x1, y1, x2, y2) {
         if (t1 === TYPE.SAND || t2 === TYPE.SAND) {
             let sX = t1 === TYPE.SWITCH_OFF ? x1 : x2;
             let sY = t1 === TYPE.SWITCH_OFF ? y1 : y2;
-            grid[sX][sY].type = TYPE.SWITCH_ON;
-            checkWinCondition();
+            let sid = grid[sX][sY].switchId;
+            
+            // Turn all pixels of this switch ON
+            let anyChange = false;
+            for(let ix = 0; ix < gridW; ix++) {
+                for(let iy = 0; iy < gridH; iy++) {
+                    if (grid[ix][iy].type === TYPE.SWITCH_OFF && grid[ix][iy].switchId === sid) {
+                        grid[ix][iy].type = TYPE.SWITCH_ON;
+                        anyChange = true;
+                    }
+                }
+            }
+            if (anyChange) {
+                activatedSwitches.add(sid);
+                checkWinCondition();
+            }
             return false; // Do not occupy the switch space
         }
     }
@@ -269,13 +294,7 @@ function handleCollisionInteraction(x1, y1, x2, y2) {
 }
 
 function checkWinCondition() {
-    let switchesOff = 0;
-    for (let x=0; x<gridW; x++) {
-        for (let y=0; y<gridH; y++) {
-            if (grid[x][y].type === TYPE.SWITCH_OFF) switchesOff++;
-        }
-    }
-    if (switchesOff === 0 && !levelComplete) {
+    if (totalSwitches > 0 && activatedSwitches.size >= totalSwitches && !levelComplete) {
         levelComplete = true;
         setTimeout(() => {
             isPlaying = false;
@@ -293,15 +312,15 @@ function updatePhysics() {
             for (let y = 0; y < gridH; y++) {
                 let cell = grid[x][y];
                 if (cell.type === TYPE.SPAWNER && cell.params && cell.params.amount > 0) {
-                    // Try to spawn in adjacent 3x3
-                    let spawned = false;
-                    for (let sx = -1; sx <= 1 && !spawned; sx++) {
-                        for (let sy = -1; sy <= 1 && !spawned; sy++) {
+                    // Try to spawn a slow trickle (max 2 per frame per spawner)
+                    let spawnedCount = 0;
+                    for (let sx = -1; sx <= 1 && spawnedCount < 2; sx++) {
+                        for (let sy = -1; sy <= 1 && spawnedCount < 2; sy++) {
                             let tx = x + sx, ty = y + sy;
                             if (tx>=0 && tx<gridW && ty>=0 && ty<gridH && grid[tx][ty].type === TYPE.EMPTY) {
                                 grid[tx][ty] = { type: TYPE.SAND, updated: currentFrame, color: randomFluidColor() };
                                 cell.params.amount--;
-                                spawned = true;
+                                spawnedCount++;
                             }
                         }
                     }
