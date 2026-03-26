@@ -4,9 +4,9 @@
 
 // Configuration
 const CONFIG = {
-    gridSize: 80, // Number of cells across the width
     fps: 60,
-    gravityMultiplier: 0.1, // Responsiveness of gravity vector
+    physicsStepsPerFrame: 3, // Makes the fluid fall faster and feel more responsive
+    glowEffects: true
 };
 
 // Physics/Tile Types
@@ -17,18 +17,20 @@ const TYPE = {
     SWITCH_OFF: 3,
     SWITCH_ON: 4,
     GOAL: 5,
-    SPAWNER: 6
+    SPAWNER: 6,
+    HAZARD: 7
 };
 
-// Colors
+// Base Colors
 const COLORS = [
-    '#05050A', // 0: EMPTY (Dark background)
-    '#303045', // 1: WALL (Blueish grey)
-    '#00E5FF', // 2: SAND (Neon Cyan fluid)
+    'transparent', // 0: EMPTY (drawn as background)
+    '#252538', // 1: WALL (Blueish grey)
+    '#00D4FF', // 2: SAND (Base color, will be randomized slightly)
     '#FF0055', // 3: SWITCH_OFF (Neon Red)
     '#00FF66', // 4: SWITCH_ON (Neon Green)
     '#FFCC00', // 5: GOAL (Gold portal)
-    '#FFFFFF'  // 6: SPAWNER (White)
+    '#FFFFFF', // 6: SPAWNER (White/Invisible mostly)
+    '#AA00FF'  // 7: HAZARD (Acid purple)
 ];
 
 // Globals
@@ -36,100 +38,29 @@ let canvas, ctx;
 let width, height;
 let gridW, gridH;
 let cellSize;
+let offsetX = 0, offsetY = 0;
 let grid = [];
 let currentFrame = 0;
-let gravity = { x: 0, y: 1 }; // Default down
+let gravity = { x: 0, y: 1 };
 let isPlaying = false;
 let currentLevelNum = 1;
 let levelComplete = false;
 
-// Helper to draw walls
-function drawRect(rx, ry, rw, rh, type = TYPE.WALL) {
-    for (let x = Math.floor(rx); x < Math.floor(rx + rw); x++) {
-        for (let y = Math.floor(ry); y < Math.floor(ry + rh); y++) {
-            if (x >= 0 && x < gridW && y >= 0 && y < gridH) {
-                grid[x][y] = { type: type, updated: -1 };
-            }
-        }
-    }
-}
-
-// Perimeter walls
-function drawPerimeter() {
-    drawRect(0, 0, gridW, 1);
-    drawRect(0, gridH - 1, gridW, 1);
-    drawRect(0, 0, 1, gridH);
-    drawRect(gridW - 1, 0, 1, gridH);
-}
-
-// Levels
-const LEVELS = [
-    {
-        // Level 1: Introduction (Fall down, tilt right)
-        build: () => {
-            drawPerimeter();
-            // L-shape tunnel
-            drawRect(0, gridH/2, gridW*0.6, 2);
-            drawRect(gridW*0.6, gridH/2, 2, gridH/2);
-            
-            // Switch at bottom right of the tunnel
-            grid[Math.floor(gridW*0.8)][Math.floor(gridH*0.8)] = { type: TYPE.SWITCH_OFF, updated: -1 };
-            
-            // Spawner top left
-            grid[Math.floor(gridW*0.2)][10] = { type: TYPE.SPAWNER, updated: -1, params: { amount: 300 } };
-        }
-    },
-    {
-        // Level 2: The S-Curve Maze
-        build: () => {
-            drawPerimeter();
-            // Shelves
-            drawRect(0, gridH*0.33, gridW*0.8, 4);
-            drawRect(gridW*0.2, gridH*0.66, gridW*0.8, 4);
-            
-            // Switch tucked under
-            grid[Math.floor(gridW*0.1)][Math.floor(gridH*0.85)] = { type: TYPE.SWITCH_OFF, updated: -1 };
-            
-            // Spawner
-            grid[Math.floor(gridW*0.5)][5] = { type: TYPE.SPAWNER, updated: -1, params: { amount: 400 } };
-        }
-    },
-    {
-        // Level 3: Dual Switches
-        build: () => {
-            drawPerimeter();
-            drawRect(gridW/2 - 2, 0, 4, gridH*0.7); // Center divider
-            drawRect(0, gridH*0.7 - 4, gridW*0.3, 4);
-            drawRect(gridW*0.7, gridH*0.7 - 4, gridW*0.3, 4);
-            
-            // Switches in left and right pockets
-            grid[Math.floor(gridW*0.1)][Math.floor(gridH*0.6)] = { type: TYPE.SWITCH_OFF, updated: -1 };
-            grid[Math.floor(gridW*0.9)][Math.floor(gridH*0.6)] = { type: TYPE.SWITCH_OFF, updated: -1 };
-            
-            // Spawner in center, must split the sand
-            grid[Math.floor(gridW/2)][Math.floor(gridH*0.8)] = { type: TYPE.SPAWNER, updated: -1, params: { amount: 200 } }; // Upside down logic! Users must tilt up
-        }
-    }
-];
-
 // Initialize DOM and Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
     canvas = document.getElementById('game-canvas');
-    ctx = canvas.getContext('2d', { alpha: false }); // Optimize for no transparency
+    ctx = canvas.getContext('2d', { alpha: false });
     
     // UI Elements
     const startBtn = document.getElementById('start-btn');
     const nextBtn = document.getElementById('next-btn');
     const errorMsg = document.getElementById('error-msg');
     
-    // Resize handler
     window.addEventListener('resize', handleResize);
     handleResize();
 
-    // Start Button Click
     startBtn.addEventListener('click', async () => {
         try {
-            // Request Device Orientation Permission for iOS 13+
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 const permissionState = await DeviceOrientationEvent.requestPermission();
                 if (permissionState === 'granted') {
@@ -139,13 +70,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     errorMsg.innerText = "Permission refusée. Le jeu nécessite l'accès à l'accéléromètre.";
                 }
             } else {
-                // Non-iOS 13+ devices
                 window.addEventListener('deviceorientation', handleOrientation);
                 startGame();
             }
         } catch (e) {
-            errorMsg.innerText = "Erreur: " + e.message;
-            // Fallback for desktop testing (mouse click acts as gravity target)
+            errorMsg.innerText = "Utilisation de la souris pour simuler l'inclinaison.";
             window.addEventListener('mousemove', (e) => {
                 const cx = window.innerWidth / 2;
                 const cy = window.innerHeight / 2;
@@ -155,14 +84,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 gravity.x = dx / len;
                 gravity.y = dy / len;
             });
-            startGame(); // Let desktop users play with mouse
+            startGame();
         }
     });
 
     nextBtn.addEventListener('click', () => {
         document.getElementById('win-screen').classList.add('hidden');
         currentLevelNum++;
-        // If we ran out of levels, just loop level 1 for now or generate
         if (currentLevelNum > LEVELS.length) {
             currentLevelNum = 1; 
         }
@@ -177,17 +105,23 @@ function handleResize() {
     canvas.width = width;
     canvas.height = height;
     
-    gridW = CONFIG.gridSize;
-    cellSize = width / gridW;
-    gridH = Math.ceil(height / cellSize);
-    
-    // Only rebuild grid if game not playing (to avoid squashing particles)
-    if (!isPlaying) {
-        initGrid();
+    // If playing, recompute cell size and offsets without destroying grid
+    if (gridW && gridH) {
+        computeOffsets();
     }
 }
 
-function initGrid() {
+function computeOffsets() {
+    let maxW = width - 40;
+    let maxH = height - 120; // 120px padding for HUD at top
+    cellSize = Math.max(2, Math.floor(Math.min(maxW / gridW, maxH / gridH)));
+    offsetX = Math.floor((width - gridW * cellSize) / 2);
+    offsetY = Math.floor((height - gridH * cellSize) / 2) + 20;
+}
+
+function initGrid(w, h) {
+    gridW = w;
+    gridH = h;
     grid = new Array(gridW);
     for (let x = 0; x < gridW; x++) {
         grid[x] = new Array(gridH);
@@ -197,30 +131,26 @@ function initGrid() {
     }
 }
 
-// Mobile Tilt Orientation
+// Mobile Tilt Orientation mappings
 function handleOrientation(event) {
-    if (!event.beta || !event.gamma) return;
+    if (!event.beta && !event.gamma) return;
     
-    // Usually beta is pitch (-180 to 180), gamma is roll (-90 to 90)
-    // Tilted forward: beta increases. Tilted right: gamma increases.
-    // Portrait mode mapping:
-    // x gravity relies on gamma (left/right tilt)
-    // y gravity relies on beta (forward/back tilt - minus baseline if needed, normally 0 is flat on table)
-
-    // Normalize roughly to [-1, 1]
-    let maxTilt = 45; // Degrees at which gravity is maxed
-    
-    // Clamp
+    let maxTilt = 40; // max responsiveness
     let gX = Math.max(-maxTilt, Math.min(maxTilt, event.gamma)) / maxTilt;
-    let gY = Math.max(-maxTilt, Math.min(maxTilt, event.beta)) / maxTilt; // Assuming flat is 0. If holding up, beta is ~90.
-
-    // If holding the phone mostly vertical (beta ~ 60-90), we might want to offset beta so that "neutral" is 60.
-    // Let's assume the user holds it flat-ish like a tray, so 0 is neutral.
+    
+    // If phone is flat on table, beta=0. If held in hand vertically, beta=90.
+    // Let's assume resting angle is ~45 degrees.
+    let restingAngle = 45;
+    let b = event.beta;
+    if (b > 135) b = 135;
+    if (b < -45) b = -45;
+    
+    let gY = (b - restingAngle) / maxTilt;
+    gY = Math.max(-1, Math.min(1, gY));
 
     gravity.x = gX;
     gravity.y = gY;
     
-    // Ensure vector is not too long
     const len = Math.sqrt(gravity.x*gravity.x + gravity.y*gravity.y);
     if (len > 1) {
         gravity.x /= len;
@@ -231,7 +161,6 @@ function handleOrientation(event) {
 function startGame() {
     document.getElementById('start-screen').classList.add('hidden');
     document.getElementById('hud').classList.remove('hidden');
-    document.getElementById('level-num').innerText = currentLevelNum;
     
     loadLevel(currentLevelNum);
     isPlaying = true;
@@ -240,41 +169,82 @@ function startGame() {
     requestAnimationFrame(gameLoop);
 }
 
+function randomFluidColor() {
+    // Generate slight hue variation around cyan/blue
+    const hues = [180, 190, 200];
+    const h = hues[Math.floor(Math.random() * hues.length)];
+    const s = 90 + Math.random() * 10;
+    const l = 50 + Math.random() * 20;
+    return `hsl(${h}, ${s}%, ${l}%)`;
+}
+
 function loadLevel(num) {
-    initGrid();
     let idx = (num - 1) % LEVELS.length;
-    LEVELS[idx].build();
+    let lvl = LEVELS[idx];
+    
+    // Update HUD
+    document.getElementById('level-num').innerText = num + " - " + lvl.name;
+    
+    // Parse level map
+    let map = lvl.map;
+    let w = map[0].length;
+    let h = map.length;
+    
+    initGrid(w, h);
+    computeOffsets();
+    
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            let char = map[y][x] || ' ';
+            let cell = { type: TYPE.EMPTY, updated: -1 };
+            
+            if (char === '#') cell.type = TYPE.WALL;
+            else if (char === 'S') { cell.type = TYPE.SPAWNER; cell.params = { amount: 350 }; }
+            else if (char === 'X') cell.type = TYPE.SWITCH_OFF;
+            else if (char === '~') cell.type = TYPE.HAZARD;
+            
+            grid[x][y] = cell;
+        }
+    }
+    
     levelComplete = false;
 }
 
-// ---- PHYSICS ENGINE ----
+// ---- PHYSICS ENGINE ---- //
 
-// Returns true if cell is valid and empty
 function isEmpty(x, y) {
     if (x < 0 || x >= gridW || y < 0 || y >= gridH) return false;
-    return grid[x][y].type === TYPE.EMPTY || grid[x][y].type === TYPE.SWITCH_OFF || grid[x][y].type === TYPE.SWITCH_ON;
+    let t = grid[x][y].type;
+    return t === TYPE.EMPTY || t === TYPE.SWITCH_OFF || t === TYPE.SWITCH_ON || t === TYPE.HAZARD;
 }
 
-// Swaps two cells
-function swap(x1, y1, x2, y2) {
+function handleCollisionInteraction(x1, y1, x2, y2) {
+    let t1 = grid[x1][y1].type;
+    let t2 = grid[x2][y2].type;
+    
+    // Hazard wipes sand
+    if ((t1 === TYPE.SAND && t2 === TYPE.HAZARD) || (t2 === TYPE.SAND && t1 === TYPE.HAZARD)) {
+        if (t1 === TYPE.SAND) grid[x1][y1] = { type: TYPE.EMPTY, updated: currentFrame };
+        if (t2 === TYPE.SAND) grid[x2][y2] = { type: TYPE.EMPTY, updated: currentFrame };
+        return false; // didn't swap
+    }
+    
+    // If it's a switch
+    if (t1 === TYPE.SWITCH_OFF || t2 === TYPE.SWITCH_OFF) {
+        if (t1 === TYPE.SAND || t2 === TYPE.SAND) {
+            let sX = t1 === TYPE.SWITCH_OFF ? x1 : x2;
+            let sY = t1 === TYPE.SWITCH_OFF ? y1 : y2;
+            grid[sX][sY].type = TYPE.SWITCH_ON;
+            checkWinCondition();
+            return false; // Do not occupy the switch space
+        }
+    }
+    
+    // Normal swap
     let temp = grid[x1][y1];
     grid[x1][y1] = grid[x2][y2];
     grid[x2][y2] = temp;
-    
-    // Check switch interactions
-    if (grid[x1][y1].type === TYPE.SWITCH_OFF || grid[x2][y2].type === TYPE.SWITCH_OFF) {
-        // Find which is the switch and which is sand
-        let sX = grid[x1][y1].type === TYPE.SWITCH_OFF ? x1 : (grid[x2][y2].type === TYPE.SWITCH_OFF ? x2 : -1);
-        let sY = grid[x1][y1].type === TYPE.SWITCH_OFF ? y1 : (grid[x2][y2].type === TYPE.SWITCH_OFF ? y2 : -1);
-        let pX = grid[x1][y1].type === TYPE.SAND ? x1 : (grid[x2][y2].type === TYPE.SAND ? x2 : -1);
-        let pY = grid[x1][y1].type === TYPE.SAND ? y1 : (grid[x2][y2].type === TYPE.SAND ? y2 : -1);
-        
-        if (sX !== -1 && pX !== -1) {
-            // Activate switch
-            grid[sX][sY].type = TYPE.SWITCH_ON;
-            checkWinCondition();
-        }
-    }
+    return true;
 }
 
 function checkWinCondition() {
@@ -289,54 +259,49 @@ function checkWinCondition() {
         setTimeout(() => {
             isPlaying = false;
             document.getElementById('win-screen').classList.remove('hidden');
-        }, 1000);
+        }, 1200);
     }
 }
 
 function updatePhysics() {
     currentFrame++;
     
-    // Spawners
-    for (let x = 0; x < gridW; x++) {
-        for (let y = 0; y < gridH; y++) {
-            let cell = grid[x][y];
-            if (cell.type === TYPE.SPAWNER) {
-                if (cell.params && cell.params.amount > 0 && currentFrame % 2 === 0) {
-                    // Try to spawn below
-                    if (y + 1 < gridH && grid[x][y+1].type === TYPE.EMPTY) {
-                        grid[x][y+1] = { type: TYPE.SAND, updated: currentFrame };
-                        cell.params.amount--;
+    // 1. Spawners
+    if (currentFrame % 2 === 0) {
+        for (let x = 0; x < gridW; x++) {
+            for (let y = 0; y < gridH; y++) {
+                let cell = grid[x][y];
+                if (cell.type === TYPE.SPAWNER && cell.params && cell.params.amount > 0) {
+                    // Try to spawn in adjacent 3x3
+                    let spawned = false;
+                    for (let sx = -1; sx <= 1 && !spawned; sx++) {
+                        for (let sy = -1; sy <= 1 && !spawned; sy++) {
+                            let tx = x + sx, ty = y + sy;
+                            if (tx>=0 && tx<gridW && ty>=0 && ty<gridH && grid[tx][ty].type === TYPE.EMPTY) {
+                                grid[tx][ty] = { type: TYPE.SAND, updated: currentFrame, color: randomFluidColor() };
+                                cell.params.amount--;
+                                spawned = true;
+                            }
+                        }
                     }
                 }
             }
         }
     }
 
-    // Determine iteration direction to avoid multiple moves per frame
-    // Iterate from bottom up if gravity is down, top down if gravity is up
+    // Determine iteration direction
     let startY = gravity.y >= 0 ? gridH - 1 : 0;
     let endY = gravity.y >= 0 ? -1 : gridH;
     let dyIter = gravity.y >= 0 ? -1 : 1;
 
-    let startX = gravity.x >= 0 ? gridW - 1 : 0;
-    let endX = gravity.x >= 0 ? -1 : gridW;
-    let dxIter = gravity.x >= 0 ? -1 : 1;
-
-    // Discretize gravity vectors into preferred moves
-    // We want a primary move direction, and secondary fallback directions
-    
-    // Convert gravity into primary grid vector
-    // -1, 0, or 1
     let primaryDx = 0, primaryDy = 0;
-    
-    if (Math.abs(gravity.x) > 0.1) primaryDx = Math.sign(gravity.x);
-    if (Math.abs(gravity.y) > 0.1) primaryDy = Math.sign(gravity.y);
+    if (Math.abs(gravity.x) > 0.05) primaryDx = Math.sign(gravity.x);
+    if (Math.abs(gravity.y) > 0.05) primaryDy = Math.sign(gravity.y);
 
     if (primaryDx === 0 && primaryDy === 0) return; // No gravity
 
-    // Main physics pass
     for (let y = startY; y !== endY; y += dyIter) {
-        // Randomize X iteration for natural settling
+        // Randomize X iteration avoiding deterministic biased sliding
         let xArr = [];
         for (let x=0; x<gridW; x++) xArr.push(x);
         for (let i = xArr.length - 1; i > 0; i--) {
@@ -348,43 +313,39 @@ function updatePhysics() {
             let cell = grid[x][y];
             
             if (cell.type === TYPE.SAND && cell.updated !== currentFrame) {
-                // Try to move in primary direction
                 let tX = x + primaryDx;
                 let tY = y + primaryDy;
                 
                 // 1. Direct move
                 if (isEmpty(tX, tY)) {
-                    swap(x, y, tX, tY);
-                    grid[tX][tY].updated = currentFrame;
+                    if (handleCollisionInteraction(x, y, tX, tY)) {
+                        grid[tX][tY].updated = currentFrame;
+                    }
                     continue;
                 }
                 
-                // 2. Sliding along edges if hitting a wall directly
-                // If diagonal
+                // 2. Sliding
                 if (primaryDx !== 0 && primaryDy !== 0) {
                     if (Math.random() > 0.5) {
-                        if (isEmpty(x + primaryDx, y)) { swap(x, y, x + primaryDx, y); grid[x+primaryDx][y].updated = currentFrame; continue; }
-                        if (isEmpty(x, y + primaryDy)) { swap(x, y, x, y + primaryDy); grid[x][y+primaryDy].updated = currentFrame; continue; }
+                        if (isEmpty(x + primaryDx, y)) { if(handleCollisionInteraction(x,y,x+primaryDx,y)) grid[x+primaryDx][y].updated = currentFrame; continue; }
+                        if (isEmpty(x, y + primaryDy)) { if(handleCollisionInteraction(x,y,x,y+primaryDy)) grid[x][y+primaryDy].updated = currentFrame; continue; }
                     } else {
-                        if (isEmpty(x, y + primaryDy)) { swap(x, y, x, y + primaryDy); grid[x][y+primaryDy].updated = currentFrame; continue; }
-                        if (isEmpty(x + primaryDx, y)) { swap(x, y, x + primaryDx, y); grid[x+primaryDx][y].updated = currentFrame; continue; }
+                        if (isEmpty(x, y + primaryDy)) { if(handleCollisionInteraction(x,y,x,y+primaryDy)) grid[x][y+primaryDy].updated = currentFrame; continue; }
+                        if (isEmpty(x + primaryDx, y)) { if(handleCollisionInteraction(x,y,x+primaryDx,y)) grid[x+primaryDx][y].updated = currentFrame; continue; }
                     }
                 } else if (primaryDy !== 0) {
-                    // Straight vertical move fails, try sliding sideways
-                    // Slide direction depends on slight x gravity
                     let slideDx = Math.sign(gravity.x) || (Math.random() > 0.5 ? 1 : -1);
                     if (isEmpty(x + slideDx, tY)) {
-                        swap(x, y, x + slideDx, tY); grid[x+slideDx][tY].updated = currentFrame; continue;
+                        if(handleCollisionInteraction(x, y, x + slideDx, tY)) grid[x+slideDx][tY].updated = currentFrame; continue;
                     } else if (isEmpty(x - slideDx, tY)) {
-                        swap(x, y, x - slideDx, tY); grid[x-slideDx][tY].updated = currentFrame; continue;
+                        if(handleCollisionInteraction(x, y, x - slideDx, tY)) grid[x-slideDx][tY].updated = currentFrame; continue;
                     }
                 } else if (primaryDx !== 0) {
-                    // Straight horizontal move fails, try sliding vertically
                     let slideDy = Math.sign(gravity.y) || (Math.random() > 0.5 ? 1 : -1);
                     if (isEmpty(tX, y + slideDy)) {
-                        swap(x, y, tX, y + slideDy); grid[tX][y+slideDy].updated = currentFrame; continue;
+                        if(handleCollisionInteraction(x, y, tX, y + slideDy)) grid[tX][y+slideDy].updated = currentFrame; continue;
                     } else if (isEmpty(tX, y - slideDy)) {
-                        swap(x, y, tX, y - slideDy); grid[tX][y-slideDy].updated = currentFrame; continue;
+                        if(handleCollisionInteraction(x, y, tX, y - slideDy)) grid[tX][y-slideDy].updated = currentFrame; continue;
                     }
                 }
             }
@@ -392,39 +353,92 @@ function updatePhysics() {
     }
 }
 
-// ---- RENDERING ----
+// ---- RENDERING ---- //
+
+function drawRoundedRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+    ctx.fill();
+}
 
 function render() {
-    // Fill background
-    ctx.fillStyle = COLORS[0];
+    // Clear screen
+    ctx.fillStyle = '#05050A';
     ctx.fillRect(0, 0, width, height);
+    
+    // Draw background for grid to give it depth
+    ctx.fillStyle = '#0A0A14';
+    ctx.fillRect(offsetX, offsetY, gridW * cellSize, gridH * cellSize);
 
-    // Draw cells
     for (let x = 0; x < gridW; x++) {
         for (let y = 0; y < gridH; y++) {
             let cell = grid[x][y];
-            if (cell.type !== TYPE.EMPTY) {
+            if (cell.type === TYPE.EMPTY) continue;
+            
+            let pX = offsetX + x * cellSize;
+            let pY = offsetY + y * cellSize;
+            // Pad slightly for visual anti-aliasing between cells manually
+            let s = cellSize;
+            
+            ctx.shadowBlur = 0;
+
+            if (cell.type === TYPE.SAND) {
+                ctx.fillStyle = cell.color || COLORS[TYPE.SAND];
+                ctx.fillRect(pX, pY, s, s);
+            } else if (cell.type === TYPE.WALL) {
+                ctx.fillStyle = COLORS[TYPE.WALL];
+                ctx.fillRect(pX, pY, s, s);
+                // Highlight edges
+                ctx.fillStyle = 'rgba(255,255,255,0.05)';
+                ctx.fillRect(pX, pY, s, 2);
+                ctx.fillRect(pX, pY, 2, s);
+            } else if (cell.type === TYPE.SWITCH_OFF || cell.type === TYPE.SWITCH_ON) {
                 ctx.fillStyle = COLORS[cell.type];
+                if (CONFIG.glowEffects) {
+                    ctx.shadowColor = COLORS[cell.type];
+                    ctx.shadowBlur = 15;
+                }
+                const p = Math.floor(s * 0.2); // padding inside switch
+                drawRoundedRect(pX + p, pY + p, s - 2*p, s - 2*p, 4);
+            } else if (cell.type === TYPE.SPAWNER) {
+                // Draw a small pipe
+                ctx.fillStyle = COLORS[TYPE.SPAWNER];
+                ctx.fillRect(pX + s/4, pY + s/4, s/2, s/2);
+            } else if (cell.type === TYPE.HAZARD) {
+                ctx.fillStyle = COLORS[TYPE.HAZARD];
+                if (CONFIG.glowEffects) {
+                    ctx.shadowColor = COLORS[TYPE.HAZARD];
+                    ctx.shadowBlur = 15;
+                }
+                ctx.fillRect(pX, pY + s/2, s, s/2); // Half height bath
                 
-                // Slightly larger rects to avoid pixel gaps, use floored coordinates
-                let pX = Math.floor(x * cellSize);
-                let pY = Math.floor(y * cellSize);
-                let pS = Math.ceil(cellSize);
-                
-                ctx.fillRect(pX, pY, pS, pS);
+                // Bubble animation
+                if (Math.random() > 0.95) {
+                    ctx.fillStyle = '#E066FF';
+                    ctx.fillRect(pX + Math.random()*s, pY + s/4 + Math.random()*s/4, 2, 2);
+                }
             }
         }
     }
+    ctx.shadowBlur = 0;
 }
 
 function gameLoop() {
     if (!isPlaying) return;
     
-    // Can do multiple physics steps per frame for faster fluid
-    updatePhysics();
-    updatePhysics();
+    for(let i=0; i<CONFIG.physicsStepsPerFrame; i++) {
+        updatePhysics();
+    }
     
     render();
-    
     requestAnimationFrame(gameLoop);
 }
