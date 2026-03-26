@@ -187,23 +187,44 @@ function loadLevel(num) {
     
     // Parse level map
     let map = lvl.map;
-    let w = map[0].length;
-    let h = map.length;
+    let expandFactor = 4; // High resolution fluid (4x4 pixels per map character)
+    let w = map[0].length * expandFactor;
+    let h = map.length * expandFactor;
     
     initGrid(w, h);
     computeOffsets();
     
-    for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
+    for (let y = 0; y < map.length; y++) {
+        for (let x = 0; x < map[0].length; x++) {
             let char = map[y][x] || ' ';
-            let cell = { type: TYPE.EMPTY, updated: -1 };
             
-            if (char === '#') cell.type = TYPE.WALL;
-            else if (char === 'S') { cell.type = TYPE.SPAWNER; cell.params = { amount: 350 }; }
-            else if (char === 'X') cell.type = TYPE.SWITCH_OFF;
-            else if (char === '~') cell.type = TYPE.HAZARD;
-            
-            grid[x][y] = cell;
+            for (let dy = 0; dy < expandFactor; dy++) {
+                for (let dx = 0; dx < expandFactor; dx++) {
+                    let cell = { type: TYPE.EMPTY, updated: -1 };
+                    let cx = x * expandFactor + dx;
+                    let cy = y * expandFactor + dy;
+                    
+                    if (char === '#') {
+                        cell.type = TYPE.WALL;
+                    } else if (char === 'S') {
+                        // Place spawner in a 2x2 core to avoid huge spawn blocks
+                        if (dx >= 1 && dx <= 2 && dy >= 1 && dy <= 2) {
+                            cell.type = TYPE.SPAWNER; 
+                            cell.params = { amount: 1200 }; // Ensure plenty of fluid
+                        }
+                    } else if (char === 'X') {
+                        // Switch pad
+                        if (dx >= 1 && dx <= 2 && dy >= 1 && dy <= 2) {
+                            cell.type = TYPE.SWITCH_OFF;
+                        }
+                    } else if (char === '~') {
+                        // Hazard block
+                        cell.type = TYPE.HAZARD;
+                    }
+                    
+                    grid[cx][cy] = cell;
+                }
+            }
         }
     }
     
@@ -393,38 +414,32 @@ function render() {
 
             if (cell.type === TYPE.SAND) {
                 ctx.fillStyle = cell.color || COLORS[TYPE.SAND];
-                ctx.fillRect(pX, pY, s, s);
+                ctx.fillRect(pX, pY, s + 0.5, s + 0.5);
             } else if (cell.type === TYPE.WALL) {
                 ctx.fillStyle = COLORS[TYPE.WALL];
-                ctx.fillRect(pX, pY, s, s);
-                // Highlight edges
-                ctx.fillStyle = 'rgba(255,255,255,0.05)';
-                ctx.fillRect(pX, pY, s, 2);
-                ctx.fillRect(pX, pY, 2, s);
+                ctx.fillRect(pX, pY, s + 0.5, s + 0.5);
             } else if (cell.type === TYPE.SWITCH_OFF || cell.type === TYPE.SWITCH_ON) {
                 ctx.fillStyle = COLORS[cell.type];
                 if (CONFIG.glowEffects) {
                     ctx.shadowColor = COLORS[cell.type];
-                    ctx.shadowBlur = 15;
+                    ctx.shadowBlur = 10;
                 }
-                const p = Math.floor(s * 0.2); // padding inside switch
-                drawRoundedRect(pX + p, pY + p, s - 2*p, s - 2*p, 4);
+                ctx.fillRect(pX, pY, s, s);
             } else if (cell.type === TYPE.SPAWNER) {
-                // Draw a small pipe
                 ctx.fillStyle = COLORS[TYPE.SPAWNER];
-                ctx.fillRect(pX + s/4, pY + s/4, s/2, s/2);
+                ctx.fillRect(pX, pY, s, s);
             } else if (cell.type === TYPE.HAZARD) {
                 ctx.fillStyle = COLORS[TYPE.HAZARD];
                 if (CONFIG.glowEffects) {
                     ctx.shadowColor = COLORS[TYPE.HAZARD];
-                    ctx.shadowBlur = 15;
+                    ctx.shadowBlur = 10;
                 }
-                ctx.fillRect(pX, pY + s/2, s, s/2); // Half height bath
+                ctx.fillRect(pX, pY, s + 0.5, s + 0.5);
                 
                 // Bubble animation
-                if (Math.random() > 0.95) {
+                if (Math.random() > 0.98) {
                     ctx.fillStyle = '#E066FF';
-                    ctx.fillRect(pX + Math.random()*s, pY + s/4 + Math.random()*s/4, 2, 2);
+                    ctx.fillRect(pX + Math.random()*s, pY + Math.random()*s, 2, 2);
                 }
             }
         }
