@@ -1,11 +1,11 @@
 // --- CONSTANTS & SETTINGS ---
 const GRAVITY = 1800;
-const JUMP_FORCE = -950;
-const SPRING_FORCE = -1500;
-const MAX_SPEED = 450;
-const ACCELERATION = 2500;
-const DECELERATION = 2000;
-const PLATFORM_WIDTH = 64;
+const JUMP_FORCE = -1000;
+const SPRING_FORCE = -1600;
+const MAX_SPEED = 600;
+const ACCELERATION = 4000;
+const DECELERATION = 4000;
+const PLATFORM_WIDTH = 75;
 const PLATFORM_HEIGHT = 16;
 
 // --- ECS FRAMEWORK ---
@@ -126,13 +126,23 @@ function InputSystem(dt) {
         else if (input.touchRight || input.keys['ArrowRight']) targetVx = 1;
         else if (Math.abs(input.tiltX) > 0.05) targetVx = input.tiltX;
 
-        if (targetVx !== 0) {
-            v.vx += targetVx * ACCELERATION * dt;
-            if (v.vx > MAX_SPEED) v.vx = MAX_SPEED;
-            if (v.vx < -MAX_SPEED) v.vx = -MAX_SPEED;
+        let targetSpeed = targetVx * MAX_SPEED;
+
+        if (targetSpeed !== 0) {
+            let isReversing = (targetSpeed < 0 && v.vx > 0) || (targetSpeed > 0 && v.vx < 0);
+            let activeAccel = isReversing ? ACCELERATION * 4 : ACCELERATION;
+
+            if (v.vx < targetSpeed) {
+                v.vx += activeAccel * dt;
+                if (v.vx > targetSpeed) v.vx = targetSpeed;
+            } else if (v.vx > targetSpeed) {
+                v.vx -= activeAccel * dt;
+                if (v.vx < targetSpeed) v.vx = targetSpeed;
+            }
         } else {
-            if (v.vx > 0) { v.vx -= DECELERATION * dt; if (v.vx < 0) v.vx = 0; }
-            else if (v.vx < 0) { v.vx += DECELERATION * dt; if (v.vx > 0) v.vx = 0; }
+            let activeDecel = DECELERATION * 3;
+            if (v.vx > 0) { v.vx -= activeDecel * dt; if (v.vx < 0) v.vx = 0; }
+            else if (v.vx < 0) { v.vx += activeDecel * dt; if (v.vx > 0) v.vx = 0; }
         }
     });
 }
@@ -242,7 +252,7 @@ function CollisionSystem(dt) {
             if (aabb(pT, pt)) {
                 let prevBottom = pT.y - pV.vy * dt + pT.h;
                 // Jump logic - if we were mostly above
-                if (prevBottom <= pt.y + 16) {
+                if (prevBottom <= pt.y + 24) { // Increased jump forgiveness
                     pV.vy = JUMP_FORCE;
                     spawnParticles(pT.x + pT.w/2, pT.y + pT.h, '#fff', 5, 80);
                     if (platLogic.type === 2) { // fragile
@@ -541,9 +551,9 @@ function updateTouch(e) {
 function handleOrientation(e) {
     if (e.gamma !== null) {
         let g = e.gamma;
-        if (g > 45) g = 45;
-        if (g < -45) g = -45;
-        input.tiltX = g / 45; 
+        if (g > 30) g = 30; // Max speed at 30 deg instead of 45
+        if (g < -30) g = -30;
+        input.tiltX = g / 30; 
     }
 }
 
