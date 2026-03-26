@@ -1,0 +1,122 @@
+* {
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}
+
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background-color: #05050A;
+    font-family: 'Inter', sans-serif;
+    overscroll-behavior: none;
+    touch-action: none;
+}
+
+#game-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated; /* Sharp pixels */
+    z-index: 1;
+}
+
+#ui-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none; /* Let touches pass through to canvas if needed */
+}
+
+.screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: rgba(5, 5, 10, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    pointer-events: auto; /* Re-enable pointer events for screens */
+    transition: opacity 0.4s ease;
+}
+
+.screen.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.title {
+    font-size: 3rem;
+    font-weight: 900;
+    color: #FFF;
+    text-align: center;
+    margin: 0 0 1rem;
+    line-height: 1.1;
+    text-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
+}
+
+.title .highlight {
+    color: #00E5FF;
+    text-shadow: 0 0 15px rgba(0, 229, 255, 0.8);
+}
+
+.subtitle {
+    font-size: 1.1rem;
+    color: #A0A5C0;
+    margin-bottom: 3rem;
+    text-align: center;
+    max-width: 80%;
+}
+
+button {
+    background: linear-gradient(135deg, #00E5FF 0%, #0077FF 100%);
+    color: #FFF;
+    border: none;
+    border-radius: 50px;
+    padding: 1.2rem 3rem;
+    font-size: 1.2rem;
+    font-weight: 700;
+    font-family: 'Inter', sans-serif;
+    box-shadow: 0 10px 25px rgba(0, 119, 255, 0.5);
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+    outline: none;
+}
+
+button:active {
+    transform: scale(0.95);
+    box-shadow: 0 5px 15px rgba(0, 119, 255, 0.5);
+}
+
+.error-msg {
+    color: #FF3366;
+    margin-top: 2rem;
+    font-size: 0.9rem;
+    text-align: center;
+    max-width: 80%;
+}
+
+#hud {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    pointer-events: none;
+}
+
+.level-indicator {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+#hud.hidden {
+    display: none;
+}

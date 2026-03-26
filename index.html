@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Tilt-Shift Dungeon</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="ui-layer">
+        <div id="start-screen" class="screen">
+            <h1 class="title">Tilt-Shift<br><span class="highlight">Dungeon</span></h1>
+            <p class="subtitle">Inclinez pour modifier la gravité.</p>
+            <button id="start-btn">Jouer</button>
+            <p class="error-msg" id="error-msg"></p>
+        </div>
+        
+        <div id="win-screen" class="screen hidden">
+            <h1 class="title">Niveau <span class="highlight">Terminé</span></h1>
+            <button id="next-btn">Niveau Suivant</button>
+        </div>
+        
+        <div id="hud" class="hidden">
+            <div class="level-indicator">Niveau <span id="level-num">1</span></div>
+        </div>
+    </div>
+    
+    <canvas id="game-canvas"></canvas>
+
+    <script src="game.js"></script>
+</body>
+</html>
