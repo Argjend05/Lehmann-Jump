@@ -3,32 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Tilt-Shift Dungeon</title>
+    <title>Infinite Pixel Jumper</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
 </head>
 <body>
+
+    <canvas id="gameCanvas"></canvas>
+
     <div id="ui-layer">
-        <div id="start-screen" class="screen">
-            <h1 class="title">Tilt-Shift<br><span class="highlight">Dungeon</span></h1>
-            <p class="subtitle">Inclinez pour modifier la gravité.</p>
-            <button id="start-btn">Jouer</button>
-            <p class="error-msg" id="error-msg"></p>
+        <div class="hud-top">
+            <div class="score-display" id="scoreEl">0m</div>
+            <div class="money-display"><span class="coin-icon"></span><span id="moneyEl">0</span></div>
         </div>
-        
-        <div id="win-screen" class="screen hidden">
-            <h1 class="title">Niveau <span class="highlight">Terminé</span></h1>
-            <button id="next-btn">Niveau Suivant</button>
+
+        <div id="menuScreen" class="screen">
+            <div class="title">PIXEL<br>JUMPER</div>
+            <button class="button" id="startBtn">PLAY</button>
+            <div class="instructions">
+                TILT PHONE OR TAP SIDES TO MOVE.<br><br>JUMP ON PLATFORMS.<br><br>COLLECT COINS & BONUSES!
+            </div>
+            <div class="stats" id="highScoreMenu">HIGH SCORE: 0M</div>
         </div>
-        
-        <div id="hud" class="hidden">
-            <div class="level-indicator">Niveau <span id="level-num">1</span></div>
+
+        <div id="gameOverScreen" class="screen hidden">
+            <div class="game-over-title">GAME OVER</div>
+            <div class="stat-row">ALTITUDE: <span id="finalScore" class="highlight">0</span>m</div>
+            <div class="stat-row" style="margin-bottom: 40px;">COINS: <span id="finalCoins" class="highlight">0</span></div>
+            <button class="button" id="restartBtn">RETRY</button>
         </div>
     </div>
-    
-    <canvas id="game-canvas"></canvas>
 
-    <script src="levels.js"></script>
     <script src="game.js"></script>
 </body>
 </html>

@@ -1,478 +1,580 @@
-/**
- * Tilt-Shift Dungeon - Main Game Logic
- */
+// --- CONSTANTS & SETTINGS ---
+const GRAVITY = 1800;
+const JUMP_FORCE = -950;
+const SPRING_FORCE = -1500;
+const MAX_SPEED = 450;
+const ACCELERATION = 2500;
+const DECELERATION = 2000;
+const PLATFORM_WIDTH = 64;
+const PLATFORM_HEIGHT = 16;
 
-// Configuration
-const CONFIG = {
-    fps: 60,
-    physicsStepsPerFrame: 1, // Slowed down for better playability
-    glowEffects: true
-};
+// --- ECS FRAMEWORK ---
+class Entity {
+    constructor() {
+        this.id = Math.random().toString(36).substr(2, 9);
+        this.components = {};
+        this.toBeRemoved = false;
+    }
+    addComponent(c) { this.components[c.name] = c; return this; }
+    hasComponent(n) { return !!this.components[n]; }
+    getComponent(n) { return this.components[n]; }
+}
 
-// Physics/Tile Types
-const TYPE = {
-    EMPTY: 0,
-    WALL: 1,
-    SAND: 2,
-    SWITCH_OFF: 3,
-    SWITCH_ON: 4,
-    GOAL: 5,
-    SPAWNER: 6,
-    HAZARD: 7
-};
+const entities = [];
+let particles = [];
+let stars = [];
 
-// Base Colors
-const COLORS = [
-    'transparent', // 0: EMPTY (drawn as background)
-    '#252538', // 1: WALL (Blueish grey)
-    '#00D4FF', // 2: SAND (Base color, will be randomized slightly)
-    '#FF0055', // 3: SWITCH_OFF (Neon Red)
-    '#00FF66', // 4: SWITCH_ON (Neon Green)
-    '#FFCC00', // 5: GOAL (Gold portal)
-    '#FFFFFF', // 6: SPAWNER (White/Invisible mostly)
-    '#AA00FF'  // 7: HAZARD (Acid purple)
-];
+function addEntity(e) { entities.push(e); }
+function removeEntity(e) { e.toBeRemoved = true; }
+function getEntities(req) {
+    return entities.filter(e => !e.toBeRemoved && req.every(n => e.hasComponent(n)));
+}
+function cleanUpEntities() {
+    for (let i = entities.length - 1; i >= 0; i--) {
+        if (entities[i].toBeRemoved) entities.splice(i, 1);
+    }
+}
 
-// Globals
-let canvas, ctx;
-let width, height;
-let gridW, gridH;
-let cellSize;
-let offsetX = 0, offsetY = 0;
-let grid = [];
-let currentFrame = 0;
-let gravity = { x: 0, y: 1 };
-let isPlaying = false;
-let currentLevelNum = 1;
-let levelComplete = false;
-let totalSwitches = 0;
-let activatedSwitches = new Set();
+// --- COMPONENTS ---
+function Transform(x, y, w, h) { return { name: 'transform', x, y, w, h }; }
+function Velocity(vx, vy) { return { name: 'velocity', vx, vy }; }
+function GravityCmp(f) { return { name: 'gravity', force: f }; }
+function PlatformCmp(t) { return { name: 'platform', type: t, broken: false, speedX: (Math.random() > 0.5 ? 1 : -1) * (60 + Math.random()*60) }; }
+function BonusCmp(t) { return { name: 'bonus', type: t }; } // 0:coin, 1:spring, 2:magnet, 3:rocket
+function PlayerCmp() { return { name: 'player', magnetTime: 0, rocketTime: 0, coins: 0 }; }
 
-// Initialize DOM and Event Listeners
-document.addEventListener('DOMContentLoaded', () => {
-    canvas = document.getElementById('game-canvas');
-    ctx = canvas.getContext('2d', { alpha: false });
-    
-    // UI Elements
-    const startBtn = document.getElementById('start-btn');
-    const nextBtn = document.getElementById('next-btn');
-    const errorMsg = document.getElementById('error-msg');
-    
-    window.addEventListener('resize', handleResize);
-    handleResize();
+// --- GLOBALS ---
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let cw = window.innerWidth, ch = window.innerHeight;
+let cameraY = 0;
+let highestPlatY = window.innerHeight;
+let score = 0;
+let lastTime = 0;
+let animationFrameId;
 
-    startBtn.addEventListener('click', async () => {
-        try {
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                const permissionState = await DeviceOrientationEvent.requestPermission();
-                if (permissionState === 'granted') {
-                    window.addEventListener('deviceorientation', handleOrientation);
-                    startGame();
-                } else {
-                    errorMsg.innerText = "Permission refusée. Le jeu nécessite l'accès à l'accéléromètre.";
-                }
-            } else {
-                window.addEventListener('deviceorientation', handleOrientation);
-                startGame();
+const GAME_STATE = { MENU: 0, PLAYING: 1, GAMEOVER: 2 };
+let currentState = GAME_STATE.MENU;
+const input = { tiltX: 0, touchLeft: false, touchRight: false, keys: {} };
+
+// --- DOM ELEMENTS ---
+const $scoreEl = document.getElementById('scoreEl');
+const $moneyEl = document.getElementById('moneyEl');
+const $menuScreen = document.getElementById('menuScreen');
+const $gameOverScreen = document.getElementById('gameOverScreen');
+const $finalScore = document.getElementById('finalScore');
+const $finalCoins = document.getElementById('finalCoins');
+const $highScoreMenu = document.getElementById('highScoreMenu');
+
+// --- SETUP RESIZE & STARS ---
+function resize() {
+    cw = window.innerWidth;
+    ch = window.innerHeight;
+    let ratio = window.devicePixelRatio || 1;
+    canvas.width = cw * ratio;
+    canvas.height = ch * ratio;
+    canvas.style.width = cw + "px";
+    canvas.style.height = ch + "px";
+    ctx.scale(ratio, ratio);
+    ctx.imageSmoothingEnabled = false;
+}
+window.addEventListener('resize', resize);
+resize();
+
+for(let i=0; i<60; i++) {
+    stars.push({
+        x: Math.random() * 2000, 
+        y: Math.random() * 2000, 
+        size: 2 + Math.random() * 3,
+        speed: 0.1 + Math.random() * 0.4,
+        color: Math.random() > 0.5 ? '#fff' : '#aaa'
+    });
+}
+
+// --- PARTICLES ---
+function spawnParticles(x, y, color, num, speed=150) {
+    for (let i = 0; i < num; i++) {
+        particles.push({
+            x: x, y: y,
+            vx: (Math.random() - 0.5) * speed * 2,
+            vy: (Math.random() - 0.5) * speed * 2,
+            size: 4 + Math.random() * 6,
+            life: 0.3 + Math.random() * 0.4,
+            maxLife: 0.7,
+            color: color
+        });
+    }
+}
+function updateParticles(dt) {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.life -= dt;
+        if (p.life <= 0) particles.splice(i, 1);
+    }
+}
+
+// --- SYSTEMS ---
+function InputSystem(dt) {
+    getEntities(['player', 'velocity']).forEach(e => {
+        let v = e.getComponent('velocity');
+        let targetVx = 0;
+
+        // Priority: Touch > Keyboard > Tilt
+        if (input.touchLeft || input.keys['ArrowLeft']) targetVx = -1;
+        else if (input.touchRight || input.keys['ArrowRight']) targetVx = 1;
+        else if (Math.abs(input.tiltX) > 0.05) targetVx = input.tiltX;
+
+        if (targetVx !== 0) {
+            v.vx += targetVx * ACCELERATION * dt;
+            if (v.vx > MAX_SPEED) v.vx = MAX_SPEED;
+            if (v.vx < -MAX_SPEED) v.vx = -MAX_SPEED;
+        } else {
+            if (v.vx > 0) { v.vx -= DECELERATION * dt; if (v.vx < 0) v.vx = 0; }
+            else if (v.vx < 0) { v.vx += DECELERATION * dt; if (v.vx > 0) v.vx = 0; }
+        }
+    });
+}
+
+function PhysicsSystem(dt) {
+    getEntities(['transform', 'velocity']).forEach(e => {
+        let t = e.getComponent('transform');
+        let v = e.getComponent('velocity');
+        
+        let inRocketDelay = e.hasComponent('player') && e.getComponent('player').rocketTime > 0;
+        
+        if (e.hasComponent('gravity') && !inRocketDelay) {
+            v.vy += e.getComponent('gravity').force * dt;
+        } else if (inRocketDelay) {
+            v.vy = -1600; // rocket speed overrides gravity
+        }
+        
+        t.x += v.vx * dt;
+        t.y += v.vy * dt;
+        
+        // Player Constraints
+        if (e.hasComponent('player')) {
+            if (t.x > cw) t.x = -t.w;
+            if (t.x + t.w < 0) t.x = cw;
+            
+            if (t.y > cameraY + ch + 150) {
+                setGameOver();
             }
-        } catch (e) {
-            errorMsg.innerText = "Utilisation de la souris pour simuler l'inclinaison.";
-            window.addEventListener('mousemove', (e) => {
-                const cx = window.innerWidth / 2;
-                const cy = window.innerHeight / 2;
-                let dx = e.clientX - cx;
-                let dy = e.clientY - cy;
-                const len = Math.sqrt(dx*dx + dy*dy) || 1;
-                gravity.x = dx / len;
-                gravity.y = dy / len;
-            });
-            startGame();
+            if (t.y < cameraY + ch * 0.4) {
+                cameraY = t.y - ch * 0.4;
+            }
+        }
+        
+        // Moving Platforms
+        if (e.hasComponent('platform')) {
+            let pLogic = e.getComponent('platform');
+            if (pLogic.type === 1) { 
+                if (t.x <= 0) pLogic.speedX = Math.abs(pLogic.speedX);
+                else if (t.x + t.w >= cw) pLogic.speedX = -Math.abs(pLogic.speedX);
+                v.vx = pLogic.speedX;
+            } else {
+                v.vx = 0; 
+            }
+        }
+    });
+}
+
+function aabb(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x &&
+           a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function CollisionSystem(dt) {
+    let pEnt = getEntities(['player'])[0];
+    if (!pEnt) return;
+    let pT = pEnt.getComponent('transform');
+    let pV = pEnt.getComponent('velocity');
+    let pLogic = pEnt.getComponent('player');
+    
+    // Bonuses Logic
+    getEntities(['bonus', 'transform']).forEach(bEnt => {
+        let bT = bEnt.getComponent('transform');
+        let bType = bEnt.getComponent('bonus').type;
+        
+        // Magnet
+        if (bType === 0 && pLogic.magnetTime > 0) {
+            let dx = (pT.x + pT.w/2) - (bT.x + bT.w/2);
+            let dy = (pT.y + pT.h/2) - (bT.y + bT.h/2);
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < 400 && dist > 1) {
+                let speed = 900 * (1 / (dist/200)); 
+                bT.x += (dx/dist) * speed * dt; 
+                bT.y += (dy/dist) * speed * dt;
+            }
+        }
+        
+        if (aabb(pT, bT)) {
+            removeEntity(bEnt);
+            
+            if (bType === 0) { 
+                pLogic.coins++; 
+                score += 2; 
+                spawnParticles(bT.x+10, bT.y+10, '#ffeb3b', 5, 50);
+            } 
+            if (bType === 1) { 
+                pV.vy = SPRING_FORCE; 
+                spawnParticles(pT.x+pT.w/2, pT.y+pT.h, '#e91e63', 10);
+            } 
+            if (bType === 2) { 
+                pLogic.magnetTime = 8; 
+                spawnParticles(bT.x+10, bT.y+10, '#9c27b0', 10);
+            } 
+            if (bType === 3) { 
+                pLogic.rocketTime = 4; 
+                spawnParticles(bT.x+10, bT.y+10, '#ff5722', 15);
+            } 
         }
     });
 
-    nextBtn.addEventListener('click', () => {
-        document.getElementById('win-screen').classList.add('hidden');
-        currentLevelNum++;
-        if (currentLevelNum > LEVELS.length) {
-            currentLevelNum = 1; 
+    // Platform Collision
+    if (pV.vy > 0 && pLogic.rocketTime <= 0) {
+        getEntities(['platform', 'transform']).forEach(plat => {
+            let platLogic = plat.getComponent('platform');
+            if (platLogic.broken) return;
+            let pt = plat.getComponent('transform');
+            
+            if (aabb(pT, pt)) {
+                let prevBottom = pT.y - pV.vy * dt + pT.h;
+                // Jump logic - if we were mostly above
+                if (prevBottom <= pt.y + 16) {
+                    pV.vy = JUMP_FORCE;
+                    spawnParticles(pT.x + pT.w/2, pT.y + pT.h, '#fff', 5, 80);
+                    if (platLogic.type === 2) { // fragile
+                        platLogic.broken = true;
+                        removeEntity(plat);
+                        spawnParticles(pt.x + pt.w/2, pt.y + pt.h/2, '#ffc107', 15, 200);
+                    }
+                }
+            }
+        });
+    }
+}
+
+function SpawnerSystem() {
+    while (highestPlatY > cameraY - ch - 150) {
+        let currentAlt = Math.floor(-highestPlatY / 10);
+        let difficulty = Math.min(1, currentAlt / 500); // reaches max around 5000 units
+        
+        let baseY = 70;
+        let randomY = 50 + (difficulty * 100); 
+        let gapY = baseY + Math.random() * randomY; 
+        if (gapY > 260) gapY = 260; // Absolute max jump limit
+        
+        highestPlatY -= gapY;
+        
+        let type = 0;
+        let r = Math.random();
+        if (r < difficulty * 0.9) {
+            if (Math.random() < 0.4) type = 1; // moving
+            else type = 2; // fragile
         }
-        loadLevel(currentLevelNum);
-        isPlaying = true;
+        
+        let w = PLATFORM_WIDTH * (1 - difficulty * 0.4); 
+        if (w < 40) w = 40;
+        let h = PLATFORM_HEIGHT;
+        
+        let x = Math.random() * (cw - w);
+        
+        let plat = new Entity();
+        plat.addComponent(Transform(x, highestPlatY, w, h));
+        plat.addComponent(PlatformCmp(type));
+        plat.addComponent(Velocity(0, 0));
+        if (type === 1) plat.getComponent('velocity').vx = plat.getComponent('platform').speedX;
+        addEntity(plat);
+        
+        // Spawn bonus (15% chance overall)
+        if (Math.random() < 0.15 && type !== 2) {
+            let bType = 0; 
+            let br = Math.random();
+            if (br > 0.6) bType = 1; // spring
+            if (br > 0.8) bType = 2; // magnet
+            if (br > 0.92) bType = 3; // rocket
+            
+            let item = new Entity();
+            item.addComponent(Transform(x + w/2 - 12, highestPlatY - 32, 24, 24));
+            item.addComponent(BonusCmp(bType));
+            addEntity(item);
+        }
+    }
+}
+
+// --- RENDER SYSTEM ---
+function renderSystem() {
+    ctx.clearRect(0, 0, cw, ch);
+    ctx.fillStyle = '#171721';
+    ctx.fillRect(0, 0, cw, ch);
+    
+    // Draw Parallax Stars
+    stars.forEach(s => {
+        let sx = s.x % cw;
+        let sy = (s.y - cameraY * s.speed) % ch;
+        if (sy < 0) sy += ch;
+        ctx.fillStyle = s.color;
+        ctx.globalAlpha = s.size / 5;
+        ctx.fillRect(sx, sy, s.size, s.size);
     });
-});
-
-function handleResize() {
-    width = window.innerWidth;
-    height = window.innerHeight;
-    canvas.width = width;
-    canvas.height = height;
+    ctx.globalAlpha = 1;
     
-    // If playing, recompute cell size and offsets without destroying grid
-    if (gridW && gridH) {
-        computeOffsets();
-    }
-}
+    ctx.save();
+    ctx.translate(0, -cameraY);
+    
+    // Render Entities
+    const renderables = getEntities(['transform']);
 
-function computeOffsets() {
-    let maxW = width - 40;
-    let maxH = height - 120; // 120px padding for HUD at top
-    cellSize = Math.max(2, Math.floor(Math.min(maxW / gridW, maxH / gridH)));
-    offsetX = Math.floor((width - gridW * cellSize) / 2);
-    offsetY = Math.floor((height - gridH * cellSize) / 2) + 20;
-}
+    renderables.forEach(e => {
+        let t = e.getComponent('transform');
+        
+        if (e.hasComponent('platform')) {
+            let pType = e.getComponent('platform');
+            if (pType.broken) return;
+            
+            if (pType.type === 0) { ctx.fillStyle = '#8bc34a'; } // normal
+            else if (pType.type === 1) { ctx.fillStyle = '#03a9f4'; } // moving
+            else if (pType.type === 2) { ctx.fillStyle = '#ff9800'; } // fragile
+            
+            ctx.fillRect(t.x, t.y, t.w, t.h);
+            ctx.fillStyle = 'rgba(255,255,255,0.3)';
+            ctx.fillRect(t.x, t.y, t.w, t.h/3);
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.fillRect(t.x, t.y + t.h - t.h/3, t.w, t.h/3);
+            
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(t.x, t.y, t.w, t.h);
 
-function initGrid(w, h) {
-    gridW = w;
-    gridH = h;
-    grid = new Array(gridW);
-    for (let x = 0; x < gridW; x++) {
-        grid[x] = new Array(gridH);
-        for (let y = 0; y < gridH; y++) {
-            grid[x][y] = { type: TYPE.EMPTY, updated: -1 };
         }
+        else if (e.hasComponent('bonus')) {
+            let bType = e.getComponent('bonus').type;
+            if (bType === 0) ctx.fillStyle = '#ffeb3b'; // coin
+            if (bType === 1) ctx.fillStyle = '#e91e63'; // spring
+            if (bType === 2) ctx.fillStyle = '#9c27b0'; // magnet
+            if (bType === 3) ctx.fillStyle = '#ff5722'; // rocket
+            
+            ctx.fillRect(t.x, t.y, t.w, t.h);
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(t.x, t.y, t.w, t.h);
+            
+            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            ctx.fillRect(t.x + 2, t.y + 2, t.w - 4, 4);
+
+            ctx.fillStyle = '#fff';
+            if (bType === 0) { ctx.fillStyle = '#f57f17'; ctx.fillRect(t.x + 6, t.y + 6, 12, 12); }
+            if (bType === 1) { ctx.fillRect(t.x + 6, t.y + 10, 12, 6); }
+            if (bType === 2) { ctx.fillRect(t.x + 6, t.y + 6, 12, 12); ctx.fillStyle = ctx.strokeStyle; ctx.fillRect(t.x + 10, t.y + 12, 4, 6); }
+            if (bType === 3) { ctx.beginPath(); ctx.moveTo(t.x + t.w/2, t.y + 4); ctx.lineTo(t.x + t.w - 4, t.y + t.h - 4); ctx.lineTo(t.x + 4, t.y + t.h - 4); ctx.fill(); }
+        }
+    });
+
+    // Render Player
+    getEntities(['player']).forEach(e => {
+        let t = e.getComponent('transform');
+        let v = e.getComponent('velocity');
+        let pCmp = e.getComponent('player');
+
+        const drawBlob = (xOff) => {
+            ctx.save();
+            ctx.translate(t.x + t.w/2 + xOff, t.y + t.h);
+            
+            // Squash & Stretch dynamics
+            let stretch = Math.max(-0.4, Math.min(1.0, Math.abs(v.vy) / 2000));
+            let scaleY = 1 + stretch;
+            let scaleX = 1 - stretch * 0.4;
+            ctx.scale(scaleX, scaleY);
+            
+            // Magnet outline
+            if (pCmp.magnetTime > 0) {
+                ctx.fillStyle = '#9c27b0';
+                ctx.fillRect(-t.w/2 - 4, -t.h - 4, t.w + 8, t.h + 8);
+            }
+
+            // Body
+            ctx.fillStyle = pCmp.rocketTime > 0 ? '#ff5722' : '#00e5ff';
+            ctx.fillRect(-t.w/2, -t.h, t.w, t.h);
+            
+            // Highlight
+            ctx.fillStyle = 'rgba(255,255,255,0.3)';
+            ctx.fillRect(-t.w/2 + 2, -t.h + 2, t.w - 4, 6);
+            
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(-t.w/2, -t.h, t.w, t.h);
+            
+            // Eyes
+            ctx.fillStyle = '#000';
+            let dir = Math.sign(v.vx) * 4;
+            if(Math.abs(v.vx) < 50) dir = 0;
+            ctx.fillRect(-t.w/2 + 6 + dir, -t.h + 8, 4, 6);
+            ctx.fillRect(t.w/2 - 10 + dir, -t.h + 8, 4, 6);
+            
+            // Exhaust
+            if (pCmp.rocketTime > 0) {
+                ctx.fillStyle = '#ffeb3b';
+                ctx.fillRect(-t.w/2 + 4, 0, t.w - 8, 15 + Math.random()*20);
+                ctx.fillStyle = '#e65100';
+                ctx.fillRect(-t.w/2 + 8, 5, t.w - 16, Math.random()*20);
+            }
+            
+            ctx.restore();
+        };
+
+        drawBlob(0);
+        if (t.x > cw - t.w) drawBlob(-cw);
+        else if (t.x < 0) drawBlob(cw);
+
+    });
+
+    // Particles
+    particles.forEach(p => {
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.life / p.maxLife;
+        ctx.fillRect(p.x, p.y, p.size, p.size);
+    });
+    ctx.globalAlpha = 1;
+    
+    ctx.restore();
+}
+
+// --- GAME LOOP ---
+function gameLoop(time) {
+    if (currentState !== GAME_STATE.PLAYING) return;
+    animationFrameId = requestAnimationFrame(gameLoop);
+    
+    let dt = (time - lastTime) / 1000;
+    lastTime = time;
+    if (dt > 0.1) dt = 0.1; // clamp to prevent clipping
+    
+    let pEnt = getEntities(['player'])[0];
+    if (pEnt) {
+        let pLogic = pEnt.getComponent('player');
+        if (pLogic.magnetTime > 0) pLogic.magnetTime -= dt;
+        if (pLogic.rocketTime > 0) pLogic.rocketTime -= dt;
+    }
+    
+    InputSystem(dt);
+    PhysicsSystem(dt);
+    CollisionSystem(dt);
+    SpawnerSystem();
+    
+    // Cleanup
+    entities.forEach(e => {
+        if (e.hasComponent('transform') && e.getComponent('transform').y > cameraY + ch + 400) {
+            removeEntity(e);
+        }
+    });
+    cleanUpEntities();
+    updateParticles(dt);
+    
+    renderSystem();
+    
+    // Update HUD
+    let currentAlt = Math.max(0, Math.floor(-cameraY / 10));
+    if (currentAlt > score) score = currentAlt;
+    $scoreEl.innerText = score + 'm';
+    if (pEnt) $moneyEl.innerText = pEnt.getComponent('player').coins;
+}
+
+function initGame() {
+    entities.length = 0;
+    particles.length = 0;
+    cameraY = 0;
+    score = 0;
+    highestPlatY = window.innerHeight;
+    $scoreEl.innerText = '0m';
+    $moneyEl.innerText = '0';
+    
+    let p = new Entity();
+    p.addComponent(Transform(cw/2 - 16, ch - 200, 32, 28));
+    p.addComponent(Velocity(0, 0));
+    p.addComponent(GravityCmp(GRAVITY));
+    p.addComponent(PlayerCmp());
+    addEntity(p);
+    
+    let base = new Entity();
+    base.addComponent(Transform(cw/2 - PLATFORM_WIDTH, ch - 80, PLATFORM_WIDTH*2, 20));
+    base.addComponent(PlatformCmp(0));
+    addEntity(base);
+    
+    for (let i = 0; i < 20; i++) SpawnerSystem();
+}
+
+function setGameOver() {
+    currentState = GAME_STATE.GAMEOVER;
+    cancelAnimationFrame(animationFrameId);
+    
+    let maxHS = localStorage.getItem('pixelJumperHS') || 0;
+    let pEnt = getEntities(['player'])[0];
+    let coinsRound = pEnt ? pEnt.getComponent('player').coins : 0;
+    
+    if (score > maxHS) localStorage.setItem('pixelJumperHS', score);
+    
+    $finalScore.innerText = score;
+    $finalCoins.innerText = coinsRound;
+    $gameOverScreen.classList.remove('hidden');
+}
+
+// --- INPUT HANDLING ---
+window.addEventListener('keydown', e => input.keys[e.code] = true);
+window.addEventListener('keyup', e => input.keys[e.code] = false);
+
+canvas.addEventListener('touchstart', e => updateTouch(e), {passive: false});
+canvas.addEventListener('touchmove', e => updateTouch(e), {passive: false});
+canvas.addEventListener('touchend', e => updateTouch(e), {passive: false});
+canvas.addEventListener('touchcancel', e => updateTouch(e), {passive: false});
+
+function updateTouch(e) {
+    e.preventDefault();
+    input.touchLeft = false;
+    input.touchRight = false;
+    for (let i = 0; i < e.touches.length; i++) {
+        if (e.touches[i].clientX < cw / 2) input.touchLeft = true;
+        else input.touchRight = true;
     }
 }
 
-// Mobile Tilt Orientation mappings
-function handleOrientation(event) {
-    if (!event.beta && !event.gamma) return;
-    
-    let maxTilt = 40; // max responsiveness
-    let gX = Math.max(-maxTilt, Math.min(maxTilt, event.gamma)) / maxTilt;
-    
-    // If phone is flat on table, beta=0. If held in hand vertically, beta=90.
-    // Let's assume resting angle is ~45 degrees.
-    let restingAngle = 45;
-    let b = event.beta;
-    if (b > 135) b = 135;
-    if (b < -45) b = -45;
-    
-    let gY = (b - restingAngle) / maxTilt;
-    gY = Math.max(-1, Math.min(1, gY));
+function handleOrientation(e) {
+    if (e.gamma !== null) {
+        let g = e.gamma;
+        if (g > 45) g = 45;
+        if (g < -45) g = -45;
+        input.tiltX = g / 45; 
+    }
+}
 
-    gravity.x = gX;
-    gravity.y = gY;
-    
-    const len = Math.sqrt(gravity.x*gravity.x + gravity.y*gravity.y);
-    if (len > 1) {
-        gravity.x /= len;
-        gravity.y /= len;
+document.getElementById('startBtn').addEventListener('click', attemptStart);
+document.getElementById('restartBtn').addEventListener('click', attemptStart);
+
+function attemptStart() {
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+            .then(res => {
+                if (res === 'granted') window.addEventListener('deviceorientation', handleOrientation);
+                startGame();
+            })
+            .catch(e => { console.error(e); startGame(); });
+    } else {
+        window.addEventListener('deviceorientation', handleOrientation);
+        startGame();
     }
 }
 
 function startGame() {
-    document.getElementById('start-screen').classList.add('hidden');
-    document.getElementById('hud').classList.remove('hidden');
-    
-    loadLevel(currentLevelNum);
-    isPlaying = true;
-    levelComplete = false;
-    
-    requestAnimationFrame(gameLoop);
+    $menuScreen.classList.add('hidden');
+    $gameOverScreen.classList.add('hidden');
+    currentState = GAME_STATE.PLAYING;
+    initGame();
+    requestAnimationFrame(t => {
+        lastTime = t;
+        animationFrameId = requestAnimationFrame(gameLoop);
+    });
 }
 
-function randomFluidColor() {
-    // Generate slight hue variation around cyan/blue
-    const hues = [180, 190, 200];
-    const h = hues[Math.floor(Math.random() * hues.length)];
-    const s = 90 + Math.random() * 10;
-    const l = 50 + Math.random() * 20;
-    return `hsl(${h}, ${s}%, ${l}%)`;
-}
-
-function loadLevel(num) {
-    let idx = (num - 1) % LEVELS.length;
-    let lvl = LEVELS[idx];
-    
-    // Update HUD
-    document.getElementById('level-num').innerText = num + " - " + lvl.name;
-    
-    // Parse level map
-    let map = lvl.map;
-    let expandFactor = 4; // High resolution fluid (4x4 pixels per map character)
-    let w = map[0].length * expandFactor;
-    let h = map.length * expandFactor;
-    
-    initGrid(w, h);
-    computeOffsets();
-    
-    totalSwitches = 0;
-    activatedSwitches.clear();
-    
-    for (let y = 0; y < map.length; y++) {
-        for (let x = 0; x < map[0].length; x++) {
-            let char = map[y][x] || ' ';
-            let currentSwitchId = 0;
-            if (char === 'X') {
-                totalSwitches++;
-                currentSwitchId = totalSwitches;
-            }
-            
-            for (let dy = 0; dy < expandFactor; dy++) {
-                for (let dx = 0; dx < expandFactor; dx++) {
-                    let cell = { type: TYPE.EMPTY, updated: -1 };
-                    let cx = x * expandFactor + dx;
-                    let cy = y * expandFactor + dy;
-                    
-                    if (char === '#') {
-                        cell.type = TYPE.WALL;
-                    } else if (char === 'S') {
-                        // Place spawner in a 2x2 core to avoid huge spawn blocks
-                        if (dx >= 1 && dx <= 2 && dy >= 1 && dy <= 2) {
-                            cell.type = TYPE.SPAWNER; 
-                            cell.params = { amount: 1500 }; // Ensure plenty of fluid
-                        }
-                    } else if (char === 'X') {
-                        // Switch pad
-                        if (dx >= 1 && dx <= 2 && dy >= 1 && dy <= 2) {
-                            cell.type = TYPE.SWITCH_OFF;
-                            cell.switchId = currentSwitchId;
-                        }
-                    } else if (char === '~') {
-                        // Hazard block
-                        cell.type = TYPE.HAZARD;
-                    }
-                    
-                    grid[cx][cy] = cell;
-                }
-            }
-        }
-    }
-    
-    levelComplete = false;
-}
-
-// ---- PHYSICS ENGINE ---- //
-
-function isEmpty(x, y) {
-    if (x < 0 || x >= gridW || y < 0 || y >= gridH) return false;
-    let t = grid[x][y].type;
-    return t === TYPE.EMPTY || t === TYPE.SWITCH_OFF || t === TYPE.SWITCH_ON || t === TYPE.HAZARD;
-}
-
-function handleCollisionInteraction(x1, y1, x2, y2) {
-    let t1 = grid[x1][y1].type;
-    let t2 = grid[x2][y2].type;
-    
-    // Hazard wipes sand
-    if ((t1 === TYPE.SAND && t2 === TYPE.HAZARD) || (t2 === TYPE.SAND && t1 === TYPE.HAZARD)) {
-        if (t1 === TYPE.SAND) grid[x1][y1] = { type: TYPE.EMPTY, updated: currentFrame };
-        if (t2 === TYPE.SAND) grid[x2][y2] = { type: TYPE.EMPTY, updated: currentFrame };
-        return false; // didn't swap
-    }
-    
-    // If it's a switch
-    if (t1 === TYPE.SWITCH_OFF || t2 === TYPE.SWITCH_OFF) {
-        if (t1 === TYPE.SAND || t2 === TYPE.SAND) {
-            let sX = t1 === TYPE.SWITCH_OFF ? x1 : x2;
-            let sY = t1 === TYPE.SWITCH_OFF ? y1 : y2;
-            let sid = grid[sX][sY].switchId;
-            
-            // Turn all pixels of this switch ON
-            let anyChange = false;
-            for(let ix = 0; ix < gridW; ix++) {
-                for(let iy = 0; iy < gridH; iy++) {
-                    if (grid[ix][iy].type === TYPE.SWITCH_OFF && grid[ix][iy].switchId === sid) {
-                        grid[ix][iy].type = TYPE.SWITCH_ON;
-                        anyChange = true;
-                    }
-                }
-            }
-            if (anyChange) {
-                activatedSwitches.add(sid);
-                checkWinCondition();
-            }
-            return false; // Do not occupy the switch space
-        }
-    }
-    
-    // Normal swap
-    let temp = grid[x1][y1];
-    grid[x1][y1] = grid[x2][y2];
-    grid[x2][y2] = temp;
-    return true;
-}
-
-function checkWinCondition() {
-    if (totalSwitches > 0 && activatedSwitches.size >= totalSwitches && !levelComplete) {
-        levelComplete = true;
-        setTimeout(() => {
-            isPlaying = false;
-            document.getElementById('win-screen').classList.remove('hidden');
-        }, 1200);
-    }
-}
-
-function updatePhysics() {
-    currentFrame++;
-    
-    // 1. Spawners
-    if (currentFrame % 2 === 0) {
-        for (let x = 0; x < gridW; x++) {
-            for (let y = 0; y < gridH; y++) {
-                let cell = grid[x][y];
-                if (cell.type === TYPE.SPAWNER && cell.params && cell.params.amount > 0) {
-                    // Try to spawn a slow trickle (max 2 per frame per spawner)
-                    let spawnedCount = 0;
-                    for (let sx = -1; sx <= 1 && spawnedCount < 2; sx++) {
-                        for (let sy = -1; sy <= 1 && spawnedCount < 2; sy++) {
-                            let tx = x + sx, ty = y + sy;
-                            if (tx>=0 && tx<gridW && ty>=0 && ty<gridH && grid[tx][ty].type === TYPE.EMPTY) {
-                                grid[tx][ty] = { type: TYPE.SAND, updated: currentFrame, color: randomFluidColor() };
-                                cell.params.amount--;
-                                spawnedCount++;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Determine iteration direction
-    let startY = gravity.y >= 0 ? gridH - 1 : 0;
-    let endY = gravity.y >= 0 ? -1 : gridH;
-    let dyIter = gravity.y >= 0 ? -1 : 1;
-
-    let primaryDx = 0, primaryDy = 0;
-    if (Math.abs(gravity.x) > 0.05) primaryDx = Math.sign(gravity.x);
-    if (Math.abs(gravity.y) > 0.05) primaryDy = Math.sign(gravity.y);
-
-    if (primaryDx === 0 && primaryDy === 0) return; // No gravity
-
-    for (let y = startY; y !== endY; y += dyIter) {
-        // Randomize X iteration avoiding deterministic biased sliding
-        let xArr = [];
-        for (let x=0; x<gridW; x++) xArr.push(x);
-        for (let i = xArr.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [xArr[i], xArr[j]] = [xArr[j], xArr[i]];
-        }
-        
-        for (let x of xArr) {
-            let cell = grid[x][y];
-            
-            if (cell.type === TYPE.SAND && cell.updated !== currentFrame) {
-                let tX = x + primaryDx;
-                let tY = y + primaryDy;
-                
-                // 1. Direct move
-                if (isEmpty(tX, tY)) {
-                    if (handleCollisionInteraction(x, y, tX, tY)) {
-                        grid[tX][tY].updated = currentFrame;
-                    }
-                    continue;
-                }
-                
-                // 2. Sliding
-                if (primaryDx !== 0 && primaryDy !== 0) {
-                    if (Math.random() > 0.5) {
-                        if (isEmpty(x + primaryDx, y)) { if(handleCollisionInteraction(x,y,x+primaryDx,y)) grid[x+primaryDx][y].updated = currentFrame; continue; }
-                        if (isEmpty(x, y + primaryDy)) { if(handleCollisionInteraction(x,y,x,y+primaryDy)) grid[x][y+primaryDy].updated = currentFrame; continue; }
-                    } else {
-                        if (isEmpty(x, y + primaryDy)) { if(handleCollisionInteraction(x,y,x,y+primaryDy)) grid[x][y+primaryDy].updated = currentFrame; continue; }
-                        if (isEmpty(x + primaryDx, y)) { if(handleCollisionInteraction(x,y,x+primaryDx,y)) grid[x+primaryDx][y].updated = currentFrame; continue; }
-                    }
-                } else if (primaryDy !== 0) {
-                    let slideDx = Math.sign(gravity.x) || (Math.random() > 0.5 ? 1 : -1);
-                    if (isEmpty(x + slideDx, tY)) {
-                        if(handleCollisionInteraction(x, y, x + slideDx, tY)) grid[x+slideDx][tY].updated = currentFrame; continue;
-                    } else if (isEmpty(x - slideDx, tY)) {
-                        if(handleCollisionInteraction(x, y, x - slideDx, tY)) grid[x-slideDx][tY].updated = currentFrame; continue;
-                    }
-                } else if (primaryDx !== 0) {
-                    let slideDy = Math.sign(gravity.y) || (Math.random() > 0.5 ? 1 : -1);
-                    if (isEmpty(tX, y + slideDy)) {
-                        if(handleCollisionInteraction(x, y, tX, y + slideDy)) grid[tX][y+slideDy].updated = currentFrame; continue;
-                    } else if (isEmpty(tX, y - slideDy)) {
-                        if(handleCollisionInteraction(x, y, tX, y - slideDy)) grid[tX][y-slideDy].updated = currentFrame; continue;
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ---- RENDERING ---- //
-
-function drawRoundedRect(x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
-    ctx.fill();
-}
-
-function render() {
-    // Clear screen
-    ctx.fillStyle = '#05050A';
-    ctx.fillRect(0, 0, width, height);
-    
-    // Draw background for grid to give it depth
-    ctx.fillStyle = '#0A0A14';
-    ctx.fillRect(offsetX, offsetY, gridW * cellSize, gridH * cellSize);
-
-    for (let x = 0; x < gridW; x++) {
-        for (let y = 0; y < gridH; y++) {
-            let cell = grid[x][y];
-            if (cell.type === TYPE.EMPTY) continue;
-            
-            let pX = offsetX + x * cellSize;
-            let pY = offsetY + y * cellSize;
-            // Pad slightly for visual anti-aliasing between cells manually
-            let s = cellSize;
-            
-            ctx.shadowBlur = 0;
-
-            if (cell.type === TYPE.SAND) {
-                ctx.fillStyle = cell.color || COLORS[TYPE.SAND];
-                ctx.fillRect(pX, pY, s + 0.5, s + 0.5);
-            } else if (cell.type === TYPE.WALL) {
-                ctx.fillStyle = COLORS[TYPE.WALL];
-                ctx.fillRect(pX, pY, s + 0.5, s + 0.5);
-            } else if (cell.type === TYPE.SWITCH_OFF || cell.type === TYPE.SWITCH_ON) {
-                ctx.fillStyle = COLORS[cell.type];
-                if (CONFIG.glowEffects) {
-                    ctx.shadowColor = COLORS[cell.type];
-                    ctx.shadowBlur = 10;
-                }
-                ctx.fillRect(pX, pY, s, s);
-            } else if (cell.type === TYPE.SPAWNER) {
-                ctx.fillStyle = COLORS[TYPE.SPAWNER];
-                ctx.fillRect(pX, pY, s, s);
-            } else if (cell.type === TYPE.HAZARD) {
-                ctx.fillStyle = COLORS[TYPE.HAZARD];
-                if (CONFIG.glowEffects) {
-                    ctx.shadowColor = COLORS[TYPE.HAZARD];
-                    ctx.shadowBlur = 10;
-                }
-                ctx.fillRect(pX, pY, s + 0.5, s + 0.5);
-                
-                // Bubble animation
-                if (Math.random() > 0.98) {
-                    ctx.fillStyle = '#E066FF';
-                    ctx.fillRect(pX + Math.random()*s, pY + Math.random()*s, 2, 2);
-                }
-            }
-        }
-    }
-    ctx.shadowBlur = 0;
-}
-
-function gameLoop() {
-    if (!isPlaying) return;
-    
-    for(let i=0; i<CONFIG.physicsStepsPerFrame; i++) {
-        updatePhysics();
-    }
-    
-    render();
-    requestAnimationFrame(gameLoop);
-}
+// --- INIT ---
+let initialHS = localStorage.getItem('pixelJumperHS') || 0;
+$highScoreMenu.innerText = 'HIGH SCORE: ' + initialHS + 'M';
