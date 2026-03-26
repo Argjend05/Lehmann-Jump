@@ -3,17 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Infinite Pixel Jumper</title>
+    <title>Infinite Pixel Jumper Deluxe</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
     <canvas id="gameCanvas"></canvas>
+    
+    <button id="pauseBtn" class="top-btn" style="right: 20px; display: none;">⏸</button>
+    <button id="soundBtn" class="top-btn" style="right: 70px;">🔊</button>
 
     <div id="ui-layer">
         <div class="hud-top">
-            <div class="score-display" id="scoreEl">0m</div>
+            <div class="score-display">
+                <div id="scoreEl">0m</div>
+                <div id="comboEl" class="combo-text hidden">COMBO x2!</div>
+            </div>
             <div class="money-display"><span class="coin-icon"></span><span id="moneyEl">0</span></div>
         </div>
 
@@ -21,9 +26,14 @@
             <div class="title">PIXEL<br>JUMPER</div>
             <button class="button" id="startBtn">PLAY</button>
             <div class="instructions">
-                TILT PHONE OR TAP SIDES TO MOVE.<br><br>JUMP ON PLATFORMS.<br><br>COLLECT COINS & BONUSES!
+                TILT PHONE OR TAP SIDES TO MOVE.<br><br>AVOID RED SPIKES.<br><br>COLLECT COINS FOR COMBOS!
             </div>
             <div class="stats" id="highScoreMenu">HIGH SCORE: 0M</div>
+        </div>
+
+        <div id="pauseScreen" class="screen hidden">
+            <div class="title" style="color: #fff;">PAUSED</div>
+            <button class="button" id="resumeBtn">RESUME</button>
         </div>
 
         <div id="gameOverScreen" class="screen hidden">
