@@ -372,6 +372,13 @@ function SpawnerSystem() {
         // Force simple platform occasionally to not make it impossible
         if (currentAlt > 100 && Math.random() < 0.2) type = 0;
 
+        // Prevent consecutive red spikes
+        let allPlats = entities.filter(e => e.hasComponent('platform'));
+        if (allPlats.length > 0 && type === 3) {
+            let lastType = allPlats[allPlats.length - 1].getComponent('platform').type;
+            if (lastType === 3) type = 2; // Downgrade to fragile
+        }
+
         let w = PLATFORM_WIDTH * (1 - difficulty * 0.3);
         if (w < 45) w = 45;
         let h = PLATFORM_HEIGHT;
@@ -384,6 +391,19 @@ function SpawnerSystem() {
         plat.addComponent(Velocity(0, 0));
         if (type === 1) plat.getComponent('velocity').vx = plat.getComponent('platform').speedX;
         addEntity(plat);
+
+        // Provide a safe alternative path on the same level if it's a spike
+        if (type === 3) {
+            let safeX = x + w + 60;
+            if (safeX + w > cw) safeX = x - w - 60;
+            if (safeX < 0) safeX = Math.random() * (cw - w);
+
+            let safePlat = new Entity();
+            safePlat.addComponent(Transform(safeX, highestPlatY + (Math.random() * 30 - 15), w, h));
+            safePlat.addComponent(PlatformCmp(0));
+            safePlat.addComponent(Velocity(0, 0));
+            addEntity(safePlat);
+        }
 
         // Spawn bonus (20% chance overall on non-spikes)
         if (Math.random() < 0.2 && type !== 3) {
