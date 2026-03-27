@@ -1,15 +1,18 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Infinite Pixel Jumper Deluxe</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
     <canvas id="gameCanvas"></canvas>
-    
+
     <button id="pauseBtn" class="top-btn" style="right: 20px; display: none;">⏸</button>
     <button id="soundBtn" class="top-btn" style="right: 70px;">🔊</button>
 
@@ -39,11 +42,13 @@
         <div id="gameOverScreen" class="screen hidden">
             <div class="game-over-title">GAME OVER</div>
             <div class="stat-row">ALTITUDE: <span id="finalScore" class="highlight">0</span>m</div>
-            <div class="stat-row" style="margin-bottom: 40px;">COINS: <span id="finalCoins" class="highlight">0</span></div>
+            <div class="stat-row" style="margin-bottom: 40px;">COINS: <span id="finalCoins" class="highlight">0</span>
+            </div>
             <button class="button" id="restartBtn">RETRY</button>
         </div>
     </div>
 
     <script src="game.js"></script>
 </body>
+
 </html>
