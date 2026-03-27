@@ -63,7 +63,7 @@ class Entity {
 
 const entities = [];
 let particles = [];
-let stars = [];
+let clouds = [];
 let motionTrails = [];
 
 function addEntity(e) { entities.push(e); }
@@ -132,14 +132,15 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
-// Init Multi-layered Parallax Stars
-for (let i = 0; i < 80; i++) {
-    stars.push({
-        x: Math.random() * 2000,
-        y: Math.random() * 4000,
-        size: Math.random() > 0.8 ? 3 : (Math.random() > 0.5 ? 2 : 1), // 1 to 3
-        speed: 0.1 + Math.random() * 0.6,
-        color: Math.random() > 0.9 ? '#ffeb3b' : (Math.random() > 0.5 ? '#fff' : '#aaa')
+// Init Parallax Clouds for the sunny sky
+for (let i = 0; i < 15; i++) {
+    clouds.push({
+        x: Math.random() * cw * 2,
+        y: Math.random() * ch * 5,
+        w: 60 + Math.random() * 100,
+        h: 20 + Math.random() * 30,
+        speed: 0.2 + Math.random() * 0.8,
+        opacity: 0.5 + Math.random() * 0.4
     });
 }
 
@@ -424,22 +425,112 @@ function SpawnerSystem() {
 // --- RENDER SYSTEM ---
 function renderSystem(dt) {
     ctx.clearRect(0, 0, cw, ch);
-    ctx.fillStyle = '#0d0d14';
+    
+    // Sunny Sky Gradient
+    let grad = ctx.createLinearGradient(0, 0, 0, ch);
+    grad.addColorStop(0, '#4fc3f7');
+    grad.addColorStop(1, '#e1f5fe');
+    ctx.fillStyle = grad;
     ctx.fillRect(0, 0, cw, ch);
 
-    // Parallax Stars
-    stars.forEach(s => {
-        let sx = s.x % cw;
-        // The further away (smaller), the slower they move
-        let depthSpeed = s.speed * (s.size / 3);
-        let sy = (s.y - cameraY * depthSpeed) % ch;
-        if (sy < 0) sy += ch;
-        ctx.fillStyle = s.color;
-        ctx.globalAlpha = s.size / 4; // dimmer if smaller
-        ctx.fillRect(sx, sy, s.size, s.size);
+    // Deep Parallax Clouds
+    clouds.forEach(c => {
+        let sx = c.x % (cw + 200) - 100;
+        let depthSpeed = c.speed * 0.15;
+        let period = ch + 400;
+        let sy = ((c.y - cameraY * depthSpeed) % period + period) % period - 200;
+        
+        ctx.globalAlpha = c.opacity;
+        
+        // Slight drop shadow for volume
+        ctx.fillStyle = 'rgba(0,0,0,0.05)';
+        ctx.fillRect(sx, sy + 4, c.w, c.h);
+        ctx.fillRect(sx + c.w * 0.1, sy - c.h * 0.4 + 4, c.w * 0.4, c.h * 0.4);
+        ctx.fillRect(sx + c.w * 0.4, sy - c.h * 0.7 + 4, c.w * 0.5, c.h * 0.7);
+        ctx.fillRect(sx + c.w * 0.8, sy - c.h * 0.2 + 4, c.w * 0.3, c.h * 0.2);
+        
+        ctx.fillStyle = '#ffffff';
+        // Draw pixelated chunky cloud
+        ctx.fillRect(sx, sy, c.w, c.h);
+        ctx.fillRect(sx + c.w * 0.1, sy - c.h * 0.4, c.w * 0.4, c.h * 0.4);
+        ctx.fillRect(sx + c.w * 0.4, sy - c.h * 0.7, c.w * 0.5, c.h * 0.7);
+        ctx.fillRect(sx + c.w * 0.8, sy - c.h * 0.2, c.w * 0.3, c.h * 0.2);
     });
     ctx.globalAlpha = 1;
 
+    ctx.save();
+    
+    // Tour de l'Europe Facade Parallax
+    let parallaxY = cameraY * 0.4;
+    let windowWidth = 60;
+    let pillarWidth = 40;
+    let floorHeight = 80;
+    let bandHeight = 15;
+    
+    let startY = Math.floor(parallaxY / floorHeight) * floorHeight;
+    let endY = startY + ch + floorHeight * 2;
+    
+    ctx.translate(0, -parallaxY);
+
+    // Calculate centered tower dimensions
+    let towerColumns = Math.max(1, Math.floor((cw - 40) / (windowWidth + pillarWidth)) - 1);
+    let towerWidth = towerColumns * windowWidth + (towerColumns + 1) * pillarWidth;
+    let towerX = (cw - towerWidth) / 2;
+
+    let concLight = '#c5bea7';
+    let concDark = '#a8a28e';
+    let windowGlass = '#2c3338';
+    let windowFrame = '#e1ddc6';
+    let blindColor = '#efebd8';
+
+    // Base wall
+    ctx.fillStyle = windowFrame;
+    ctx.fillRect(towerX, startY, towerWidth, endY - startY);
+    
+    // Draw floors
+    for (let y = startY; y < endY; y += floorHeight) {
+        let wy = y + bandHeight;
+        let wh = floorHeight - bandHeight;
+        
+        for (let col = 0; col < towerColumns; col++) {
+            let x = towerX + pillarWidth + col * (windowWidth + pillarWidth);
+            let rnd = Math.sin((y + x) * 123.456) * 10000;
+            let r = rnd - Math.floor(rnd);
+            
+            // Glass
+            ctx.fillStyle = windowGlass;
+            ctx.fillRect(x + 2, wy + 2, windowWidth - 4, wh - 4);
+            
+            // Blinds
+            if (r > 0.4) {
+                let blindH = (r - 0.4) / 0.6 * (wh - 4);
+                ctx.fillStyle = blindColor;
+                ctx.fillRect(x + 2, wy + 2, windowWidth - 4, blindH);
+                ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                for (let b = wy + 2; b < wy + 2 + blindH; b += 4) {
+                    ctx.fillRect(x + 2, b, windowWidth - 4, 1);
+                }
+            }
+        }
+        
+        // Horizontal band
+        ctx.fillStyle = concDark;
+        ctx.fillRect(towerX, y, towerWidth, bandHeight);
+    }
+    
+    // Vertical pillars
+    for (let col = 0; col <= towerColumns; col++) {
+        let x = towerX + col * (windowWidth + pillarWidth);
+        ctx.fillStyle = concLight;
+        ctx.fillRect(x, startY, pillarWidth, endY - startY);
+        // Shadow & Highlight
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.fillRect(x - 5, startY, 5, endY - startY);
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.fillRect(x, startY, 5, endY - startY);
+    }
+    
+    ctx.restore();
     ctx.save();
 
     // Screen Shake Apply
@@ -462,36 +553,72 @@ function renderSystem(dt) {
             let pType = e.getComponent('platform');
             if (pType.broken) {
                 // Ghost Fade
-                ctx.globalAlpha = 0.2 + (Math.random() * 0.1); // subtle flicker
-                ctx.fillStyle = pType.type === 3 ? '#f44336' : '#ff9800';
+                ctx.globalAlpha = 0.2 + (Math.random() * 0.1);
+                ctx.fillStyle = pType.type === 3 ? '#d84315' : '#8d6e63';
                 ctx.fillRect(t.x, t.y, t.w, t.h);
                 ctx.globalAlpha = 1;
                 return;
             }
 
-            if (pType.type === 0) { ctx.fillStyle = '#8bc34a'; } // normal
-            else if (pType.type === 1) { ctx.fillStyle = '#03a9f4'; } // moving
-            else if (pType.type === 2) { ctx.fillStyle = '#ff9800'; } // fragile
-            else if (pType.type === 3) { ctx.fillStyle = '#f44336'; } // spikes
+            let base, high, shad;
+            if (pType.type === 0) { // Normal
+                base = '#78909c'; high = '#b0bec5'; shad = '#455a64';
+            } else if (pType.type === 1) { // Moving
+                base = '#fbc02d'; high = '#fff59d'; shad = '#f57f17';
+            } else if (pType.type === 2) { // Fragile
+                base = '#8d6e63'; high = '#a1887f'; shad = '#5d4037';
+            } else if (pType.type === 3) { // Heated
+                base = '#d84315'; high = '#ffcc80'; shad = '#bf360c';
+            }
 
+            // Beam body
+            ctx.fillStyle = base;
             ctx.fillRect(t.x, t.y, t.w, t.h);
-            ctx.fillStyle = 'rgba(255,255,255,0.3)';
-            ctx.fillRect(t.x, t.y, t.w, t.h / 3);
-            ctx.fillStyle = 'rgba(0,0,0,0.3)';
-            ctx.fillRect(t.x, t.y + t.h - t.h / 3, t.w, t.h / 3);
+            
+            ctx.fillStyle = high;
+            ctx.fillRect(t.x, t.y, t.w, t.h/4);
+            
+            ctx.fillStyle = shad;
+            ctx.fillRect(t.x, t.y + t.h - t.h/4, t.w, t.h/4);
+
+            // Stripes for Moving Platforms
+            if (pType.type === 1) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(t.x, t.y, t.w, t.h);
+                ctx.clip();
+                ctx.fillStyle = '#212121';
+                for(let i = -t.h; i < t.w; i += 20) {
+                    ctx.beginPath();
+                    ctx.moveTo(t.x + i + 10, t.y);
+                    ctx.lineTo(t.x + i + 20, t.y);
+                    ctx.lineTo(t.x + i + 10 - t.h, t.y + t.h);
+                    ctx.lineTo(t.x + i - t.h, t.y + t.h);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+
+            // Rivets
+            ctx.fillStyle = shad;
+            for(let rx = 10; rx < t.w - 10; rx += 16) {
+                ctx.fillRect(t.x + rx, t.y + t.h/2 - 2, 4, 4);
+                ctx.fillStyle = high;
+                ctx.fillRect(t.x + rx, t.y + t.h/2 - 3, 2, 2);
+                ctx.fillStyle = shad;
+            }
 
             ctx.strokeStyle = '#000';
             ctx.lineWidth = 2;
             ctx.strokeRect(t.x, t.y, t.w, t.h);
 
-            // Add sharp looking lines for spikes
+            // Heated aura for Spike substitute
             if (pType.type === 3) {
-                ctx.fillStyle = '#000';
-                for (let i = 0; i < t.w; i += 8) {
-                    ctx.beginPath();
-                    ctx.moveTo(t.x + i, t.y); ctx.lineTo(t.x + i + 4, t.y - 8); ctx.lineTo(t.x + i + 8, t.y);
-                    ctx.fill();
-                }
+                let pulse = Math.sin(performance.now() / 150) * 4;
+                ctx.fillStyle = 'rgba(255, 87, 34, 0.5)';
+                ctx.fillRect(t.x, t.y - 6 - pulse, t.w, 6 + pulse);
+                ctx.fillStyle = 'rgba(255, 204, 128, 0.8)';
+                ctx.fillRect(t.x + 4, t.y - 2 - pulse/2, t.w - 8, 2);
             }
         }
         else if (e.hasComponent('bonus')) {
