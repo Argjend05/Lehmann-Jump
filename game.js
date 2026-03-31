@@ -269,7 +269,12 @@ function PhysicsSystem(dt) {
         let inRocketDelay = e.hasComponent('player') && e.getComponent('player').rocketTime > 0;
 
         if (e.hasComponent('gravity') && !inRocketDelay) {
-            v.vy += e.getComponent('gravity').force * dt;
+            let activeGravity = e.getComponent('gravity').force;
+            if (cameraY < -15000) { // Deep space zero-g fluctuations!
+                 activeGravity = 1200 + Math.sin(performance.now() / 1500) * 800;
+                 if (activeGravity < 800) activeGravity = 800; // soft cap
+            }
+            v.vy += activeGravity * dt;
             if (v.vy > 1500) v.vy = 1500; // Keep terminal velocity to prevent phasing through platforms
         } else if (inRocketDelay) {
             v.vy = -1800;
@@ -291,9 +296,13 @@ function PhysicsSystem(dt) {
             }
         }
 
-        // Moving Platform Handling & Timers
+        // Moving/Ghost Platform Handling & Timers
         if (e.hasComponent('platform')) {
             let pLogic = e.getComponent('platform');
+            if (pLogic.type === 6) {
+                pLogic.timer = (pLogic.timer || 0) + dt;
+                pLogic.active = Math.sin(pLogic.timer * 3 + t.x) > 0;
+            }
             if (pLogic.broken && pLogic.respawnTimer > 0) {
                 pLogic.respawnTimer -= dt;
                 if (pLogic.respawnTimer <= 0) {
@@ -358,13 +367,32 @@ function CollisionSystem(dt) {
             if (bType === 1) { pV.vy = SPRING_FORCE; SFX.spring(); addShake(5); spawnParticles(pT.x + pT.w / 2, pT.y + pT.h, '#e91e63', 10); }
             if (bType === 2) { pLogic.magnetTime = 8; SFX.magnet(); spawnParticles(bT.x + 10, bT.y + 10, '#9c27b0', 10); }
             if (bType === 3) { pLogic.rocketTime = 4; SFX.rocket(); addShake(8); spawnParticles(bT.x + 10, bT.y + 10, '#ff5722', 15); }
+            if (bType === 4 && pLogic.rocketTime <= 0) { 
+                pT.x = pT.x < cw/2 ? cw - pT.w - 5 : 5; // Portal!
+                SFX.magnet(); spawnParticles(bT.x, bT.y, '#00e5ff', 30, 300); spawnFloatingText("WOUCH!", pT.x, pT.y, '#00e5ff');
+            }
+        }
+    });
+
+    // Hazards (Meteors)
+    getEntities(['hazard', 'transform']).forEach(h => {
+        let hT = h.getComponent('transform');
+        let shrinkHitbox = {x: hT.x+4, y: hT.y+4, w: hT.w-8, h: hT.h-8};
+        if (aabb(pT, shrinkHitbox)) {
+            if (pLogic.rocketTime <= 0) {
+                document.getElementById('ui-layer').style.boxShadow = 'inset 0 0 150px rgba(255,0,0,0.8)';
+                setTimeout(() => document.getElementById('ui-layer').style.boxShadow = 'none', 500);
+                setGameOver();
+            } else {
+                removeEntity(h); score += 100; spawnFloatingText("DÉTRUIT !", hT.x, hT.y, '#ff5722'); spawnParticles(hT.x, hT.y, '#ff5722', 20, 300);
+            }
         }
     });
 
     // Platforms
     getEntities(['platform', 'transform']).forEach(plat => {
         let platLogic = plat.getComponent('platform');
-        if (platLogic.broken) return;
+        if (platLogic.broken || (platLogic.type === 6 && !platLogic.active)) return;
         let pt = plat.getComponent('transform');
 
         // Spike collision (instant death, anywhere) 
@@ -410,6 +438,9 @@ function CollisionSystem(dt) {
                         spawnParticles(pT.x + pT.w / 2, pT.y + pT.h, '#fff', 5, 80);
                     }
                     
+                    if (platLogic.type === 4) { pV.vx -= 1500; spawnParticles(pT.x + pT.w / 2, pT.y + pT.h, '#fff', 10, 150); } // Conveyor L
+                    if (platLogic.type === 5) { pV.vx += 1500; spawnParticles(pT.x + pT.w / 2, pT.y + pT.h, '#fff', 10, 150); } // Conveyor R
+
                     if (platLogic.type === 2) {
                         platLogic.broken = true;
                         platLogic.respawnTimer = 1.5;
@@ -436,21 +467,29 @@ function SpawnerSystem() {
 
         let type = 0;
         let r = Math.random();
-        // Difficulty scaling for platforms
+        
+        let isFactory = currentAlt > 5000;
+        let isNight = currentAlt > 10000;
+        let isSpace = currentAlt > 15000;
+
         if (r < difficulty * 0.8) {
             let r2 = Math.random();
-            if (r2 < 0.35) type = 1; // moving
-            else if (r2 < 0.7) type = 2; // fragile
-            else type = 3; // spike
+            if (isSpace) {
+                if (r2 < 0.2) type = 1; else if (r2 < 0.3) type = 2; else if (r2 < 0.5) type = 3; else if (r2 < 0.6) type = 4; else if (r2 < 0.7) type = 5; else type = 6;
+            } else if (isNight) {
+                if (r2 < 0.2) type = 1; else if (r2 < 0.4) type = 2; else if (r2 < 0.6) type = 3; else if (r2 < 0.8) type = 6; else type = (Math.random()>0.5?4:5); 
+            } else if (isFactory) {
+                if (r2 < 0.2) type = 1; else if (r2 < 0.4) type = 2; else if (r2 < 0.7) type = 3; else type = (Math.random()>0.5?4:5);
+            } else {
+                if (r2 < 0.35) type = 1; else if (r2 < 0.7) type = 2; else type = 3;
+            }
         }
-        // Force simple platform occasionally to not make it impossible
         if (currentAlt > 100 && Math.random() < 0.2) type = 0;
 
-        // Prevent consecutive red spikes
         let allPlats = entities.filter(e => e.hasComponent('platform'));
         if (allPlats.length > 0 && type === 3) {
             let lastType = allPlats[allPlats.length - 1].getComponent('platform').type;
-            if (lastType === 3) type = 2; // Downgrade to fragile
+            if (lastType === 3) type = 2;
         }
 
         let w = PLATFORM_WIDTH * (1 - difficulty * 0.3);
@@ -479,19 +518,29 @@ function SpawnerSystem() {
             addEntity(safePlat);
         }
 
-        // Spawn bonus (20% chance overall on non-spikes)
+        // Spawn bonus
         if (Math.random() < 0.2 && type !== 3) {
             let bType = 0;
             let br = Math.random();
-            if (br > 0.6) bType = 1; // spring
-            if (br > 0.8) bType = 2; // magnet
-            if (br > 0.95) bType = 3; // rocket
+            if (isSpace && br > 0.9) bType = 4; // portal
+            else if (br > 0.6) bType = 1; 
+            else if (br > 0.8) bType = 2; 
+            else if (br > 0.95) bType = 3; 
 
             let item = new Entity();
             item.addComponent(Transform(x + w / 2 - 12, highestPlatY - 32, 24, 24));
             item.addComponent(BonusCmp(bType));
             addEntity(item);
         }
+    }
+
+    let isSpace = highestPlatY < -15000;
+    if (isSpace && Math.random() < 0.03) {
+        let m = new Entity();
+        m.addComponent(Transform(Math.random() * cw, cameraY - ch, 20, 40));
+        m.addComponent(Velocity((Math.random()-0.5)*200, 800 + Math.random()*400));
+        m.addComponent({name: 'hazard'});
+        addEntity(m);
     }
 }
 
@@ -563,11 +612,46 @@ function renderSystem(dt) {
 
     ctx.save();
 
-    // Tour de l'Europe Facade Parallax
-    let parallaxY = cameraY * 0.4;
-    
-    // Scale for mobile explicitly to fix 2-window issue!
     let isMobile = cw < 600;
+
+    // Factory Pipes (5000-10000)
+    if (currentAlt >= 3000 && currentAlt < 12000) {
+        let pipeAlpha = currentAlt < 5000 ? (currentAlt-3000)/2000 : (currentAlt > 10000 ? (12000-currentAlt)/2000 : 1);
+        ctx.globalAlpha = Math.max(0, Math.min(1, pipeAlpha));
+        ctx.fillStyle = '#111';
+        let px1 = (cw * 0.2 + cameraY * 0.1) % cw; if (px1 < 0) px1 += cw;
+        ctx.fillRect(px1, ch - 300, 60, ch);
+        ctx.fillRect(px1 - 20, ch - 220, 100, 40);
+        
+        let px2 = (cw * 0.7 + cameraY * 0.15) % cw; if (px2 < 0) px2 += cw;
+        ctx.fillRect(px2, ch - 400, 80, ch);
+        ctx.fillRect(px2 - 10, ch - 320, 100, 30);
+        ctx.globalAlpha = 1;
+
+        if (Math.random() > 0.95 && pipeAlpha > 0.5) spawnParticles(px1+30, ch - 300, '#8bc34a', 1, 50);
+    }
+
+    // Giant Moon (10000-15000)
+    if (currentAlt >= 8000 && currentAlt < 18000) {
+        let moonAlpha = currentAlt < 10000 ? (currentAlt-8000)/2000 : (currentAlt > 16000 ? (18000-currentAlt)/2000 : 1);
+        ctx.globalAlpha = Math.max(0, Math.min(1, moonAlpha));
+        let moonY = ch/2 + (cameraY + 12000) * 0.05;
+        ctx.fillStyle = '#fce4ec';
+        ctx.beginPath();
+        ctx.arc(cw * 0.8, moonY, isMobile? 50 : 80, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = '#f8bbd0'; // craters
+        let cr = isMobile ? 0.6 : 1;
+        ctx.beginPath(); ctx.arc(cw * 0.8 - 20*cr, moonY - 20*cr, 15*cr, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cw * 0.8 + 30*cr, moonY + 10*cr, 25*cr, 0, Math.PI*2); ctx.fill();
+        ctx.globalAlpha = 1;
+    }
+
+    // Tour de l'Europe
+    if (currentAlt < 7000) {
+    if (currentAlt > 5000) ctx.globalAlpha = Math.max(0, (7000 - currentAlt) / 2000);
+    
+    let parallaxY = cameraY * 0.4;
     let windowWidth = isMobile ? 30 : 60;
     let pillarWidth = isMobile ? 20 : 40;
     let floorHeight = isMobile ? 45 : 80;
@@ -576,6 +660,7 @@ function renderSystem(dt) {
     let startY = Math.floor(parallaxY / floorHeight) * floorHeight;
     let endY = startY + ch + floorHeight * 2;
 
+    ctx.save();
     ctx.translate(0, -parallaxY);
 
     // Calculate centered tower dimensions
@@ -640,6 +725,10 @@ function renderSystem(dt) {
     }
 
     ctx.restore();
+    ctx.globalAlpha = 1;
+    } // end tower if block
+
+    ctx.restore();
     ctx.save();
 
     // Screen Shake Apply
@@ -678,6 +767,11 @@ function renderSystem(dt) {
                 base = '#8d6e63'; high = '#a1887f'; shad = '#5d4037';
             } else if (pType.type === 3) { // Heated
                 base = '#d84315'; high = '#ffcc80'; shad = '#bf360c';
+            } else if (pType.type === 4 || pType.type === 5) { // Conveyors
+                base = '#607d8b'; high = '#cfd8dc'; shad = '#37474f';
+            } else if (pType.type === 6) { // Ghost
+                base = '#9c27b0'; high = '#e1bee7'; shad = '#4a148c';
+                ctx.globalAlpha = pType.active ? 0.8 : 0.2;
             }
 
             // Beam body
@@ -721,6 +815,26 @@ function renderSystem(dt) {
             ctx.lineWidth = 2;
             ctx.strokeRect(t.x, t.y, t.w, t.h);
 
+            // Conveyor arrows
+            if (pType.type === 4 || pType.type === 5) {
+                ctx.fillStyle = '#ffeb3b';
+                let offset = (performance.now() / 15) % 20;
+                if (pType.type === 4) offset = 20 - offset;
+                for (let i = -10; i < t.w - 10; i += 20) {
+                    ctx.beginPath();
+                    if (pType.type === 5) {
+                        ctx.moveTo(t.x + i + offset, t.y + 2);
+                        ctx.lineTo(t.x + i + offset + 10, t.y + t.h/2);
+                        ctx.lineTo(t.x + i + offset, t.y + t.h - 2);
+                    } else {
+                        ctx.moveTo(t.x + i + offset + 10, t.y + 2);
+                        ctx.lineTo(t.x + i + offset, t.y + t.h/2);
+                        ctx.lineTo(t.x + i + offset + 10, t.y + t.h - 2);
+                    }
+                    ctx.fill();
+                }
+            }
+
             // Heated aura for Spike substitute
             if (pType.type === 3) {
                 let pulse = Math.sin(performance.now() / 150) * 4;
@@ -729,9 +843,18 @@ function renderSystem(dt) {
                 ctx.fillStyle = 'rgba(255, 204, 128, 0.8)';
                 ctx.fillRect(t.x + 4, t.y - 2 - pulse / 2, t.w - 8, 2);
             }
+            
+            if (pType.type === 6) ctx.globalAlpha = 1;
         }
         else if (e.hasComponent('bonus')) {
             let bType = e.getComponent('bonus').type;
+            if (bType === 4) {
+                ctx.fillStyle = '#00e5ff';
+                ctx.beginPath();
+                ctx.arc(t.x + 12, t.y + 12, 10 + Math.sin(performance.now()/100)*2, 0, Math.PI*2);
+                ctx.fill();
+                return;
+            }
             if (bType === 0) ctx.fillStyle = '#ffeb3b'; // coin
             if (bType === 1) ctx.fillStyle = '#e91e63'; // spring
             if (bType === 2) ctx.fillStyle = '#9c27b0'; // magnet
@@ -762,6 +885,22 @@ function renderSystem(dt) {
     });
     ctx.globalAlpha = 1;
     motionTrails = motionTrails.filter(tr => tr.life > 0);
+
+    // Render Hazards
+    getEntities(['hazard', 'transform']).forEach(h => {
+        let t = h.getComponent('transform');
+        ctx.fillStyle = '#f44336';
+        ctx.beginPath();
+        ctx.arc(t.x + t.w/2, t.y + t.h/2, t.w/2, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = '#ffeb3b';
+        ctx.beginPath();
+        ctx.arc(t.x + t.w/2, t.y + t.h/2 + 5, t.w/3, 0, Math.PI*2);
+        ctx.fill();
+        // trail
+        ctx.fillStyle = 'rgba(244, 67, 54, 0.5)';
+        ctx.fillRect(t.x + 4, t.y - 60, t.w - 8, 60);
+    });
 
     // Render Player
     getEntities(['player']).forEach(e => {
