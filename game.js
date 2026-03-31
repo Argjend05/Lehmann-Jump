@@ -98,9 +98,10 @@ function PlayerCmp() { return { name: 'player', magnetTime: 0, rocketTime: 0, co
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 let cw = window.innerWidth, ch = window.innerHeight;
+let gameScale = 1;
 let cameraY = 0;
 let targetCameraY = 0;
-let highestPlatY = window.innerHeight;
+let highestPlatY = ch;
 let score = 0;
 let lastTime = 0;
 let animationFrameId;
@@ -128,14 +129,28 @@ const $soundBtn = document.getElementById('soundBtn');
 
 // --- SETUP ---
 function resize() {
-    cw = window.innerWidth;
-    ch = window.innerHeight;
+    let screenW = window.innerWidth;
+    let screenH = window.innerHeight;
+    
+    // Virtual sizing: Prevent "zoomed in" feel on mobile screens.
+    if (screenW < 500) {
+        gameScale = screenW / 500;
+        cw = 500;
+        ch = screenH / gameScale;
+    } else {
+        gameScale = 1;
+        cw = screenW;
+        ch = screenH;
+    }
+
     let ratio = window.devicePixelRatio || 1;
-    canvas.width = cw * ratio;
-    canvas.height = ch * ratio;
-    canvas.style.width = cw + "px";
-    canvas.style.height = ch + "px";
-    ctx.scale(ratio, ratio);
+    canvas.width = screenW * ratio;
+    canvas.height = screenH * ratio;
+    canvas.style.width = screenW + "px";
+    canvas.style.height = screenH + "px";
+    
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(ratio * gameScale, ratio * gameScale);
     ctx.imageSmoothingEnabled = false;
 }
 window.addEventListener('resize', resize);
@@ -939,11 +954,12 @@ function initGame() {
     entities.length = 0;
     particles.length = 0;
     motionTrails.length = 0;
+    floatingTexts.length = 0;
     cameraY = 0;
     targetCameraY = 0;
     score = 0;
     comboCount = 0;
-    highestPlatY = window.innerHeight;
+    highestPlatY = ch;
     $scoreEl.innerText = '0m';
     $moneyEl.innerText = '0';
     $comboEl.classList.add('hidden');
@@ -1015,8 +1031,9 @@ function updateTouch(e) {
     e.preventDefault(); // disable double zoom
     input.touchLeft = false;
     input.touchRight = false;
+    let screenHalf = window.innerWidth / 2;
     for (let i = 0; i < e.touches.length; i++) {
-        if (e.touches[i].clientX < cw / 2) input.touchLeft = true;
+        if (e.touches[i].clientX < screenHalf) input.touchLeft = true;
         else input.touchRight = true;
     }
 }
