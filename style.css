@@ -54,7 +54,10 @@ html {
 
 .hidden {
     opacity: 0;
-    pointer-events: none;
+    pointer-events: none !important;
+}
+.hidden * {
+    pointer-events: none !important;
 }
 
 .title {

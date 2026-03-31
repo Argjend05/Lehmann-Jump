@@ -65,6 +65,15 @@ const entities = [];
 let particles = [];
 let clouds = [];
 let motionTrails = [];
+let floatingTexts = [];
+const stars = [];
+for(let i=0; i<100; i++) stars.push({x: Math.random()*3000, y: Math.random()*3000, size: Math.random()*2.5});
+
+function lerpColor(start, end, t) { return Math.floor(start + (end - start) * t); }
+
+function spawnFloatingText(text, x, y, color = '#fff') {
+    floatingTexts.push({ text, x, y, life: 1, color });
+}
 
 function addEntity(e) { entities.push(e); }
 function removeEntity(e) { e.toBeRemoved = true; }
@@ -175,14 +184,45 @@ function addShake(amt) {
 }
 
 // --- SYSTEMS ---
+let dashCooldown = 0;
+let lastLeftTap = 0, lastRightTap = 0;
+let leftKeyHeldLast = false, rightKeyHeldLast = false;
+
 function InputSystem(dt) {
+    if (dashCooldown > 0) dashCooldown -= dt;
     getEntities(['player', 'velocity']).forEach(e => {
         let v = e.getComponent('velocity');
+        let t = e.getComponent('transform');
         let targetVx = 0;
 
-        if (input.touchLeft || input.keys['ArrowLeft']) targetVx = -1;
-        else if (input.touchRight || input.keys['ArrowRight']) targetVx = 1;
-        else if (Math.abs(input.tiltX) > 0.05) targetVx = input.tiltX;
+        if (input.touchLeft || input.keys['ArrowLeft']) {
+            if (!leftKeyHeldLast) {
+                if (performance.now() - lastLeftTap < 150 && dashCooldown <= 0) {
+                    v.vx = -MAX_SPEED * 3; dashCooldown = 0.5; SFX.rocket(); addShake(6);
+                }
+                lastLeftTap = performance.now();
+            }
+            leftKeyHeldLast = true;
+            targetVx = -1;
+        } else { leftKeyHeldLast = false; }
+
+        if (input.touchRight || input.keys['ArrowRight']) {
+            if (!rightKeyHeldLast) {
+                if (performance.now() - lastRightTap < 150 && dashCooldown <= 0) {
+                    v.vx = MAX_SPEED * 3; dashCooldown = 0.5; SFX.rocket(); addShake(6);
+                }
+                lastRightTap = performance.now();
+            }
+            rightKeyHeldLast = true;
+            if (targetVx === 0) targetVx = 1;
+        } else { rightKeyHeldLast = false; }
+
+        if (targetVx === 0 && Math.abs(input.tiltX) > 0.05) targetVx = input.tiltX;
+
+        // Visual dash effect at high speeds
+        if (Math.abs(v.vx) > MAX_SPEED * 1.1) {
+            spawnParticles(t.x + t.w/2, t.y + t.h/2, '#00e5ff', 2, 50);
+        }
 
         let targetSpeed = targetVx * MAX_SPEED;
 
@@ -192,10 +232,10 @@ function InputSystem(dt) {
 
             if (v.vx < targetSpeed) {
                 v.vx += activeAccel * dt;
-                if (v.vx > targetSpeed) v.vx = targetSpeed;
+                if (v.vx > targetSpeed && v.vx <= MAX_SPEED) v.vx = targetSpeed;
             } else if (v.vx > targetSpeed) {
                 v.vx -= activeAccel * dt;
-                if (v.vx < targetSpeed) v.vx = targetSpeed;
+                if (v.vx < targetSpeed && v.vx >= -MAX_SPEED) v.vx = targetSpeed;
             }
         } else {
             let activeDecel = DECELERATION * 3;
@@ -316,6 +356,8 @@ function CollisionSystem(dt) {
         let spikeHitbox = { x: pt.x + 4, y: pt.y + 4, w: pt.w - 8, h: pt.h - 4 }; // Forgiving hitbox
         if (platLogic.type === 3 && aabb(pT, spikeHitbox)) {
             if (pLogic.rocketTime <= 0) {
+                document.getElementById('ui-layer').style.boxShadow = 'inset 0 0 150px rgba(255,0,0,0.8)';
+                setTimeout(() => document.getElementById('ui-layer').style.boxShadow = 'none', 500);
                 setGameOver();
                 return;
             } else {
@@ -334,9 +376,25 @@ function CollisionSystem(dt) {
                 let prevBottom = prevY + pT.h;
                 if (prevBottom <= pt.y + 24) {
                     pT.y = pt.y - pT.h; // snap exact
-                    pV.vy = JUMP_FORCE;
-                    SFX.jump();
-                    spawnParticles(pT.x + pT.w / 2, pT.y + pT.h, '#fff', 5, 80);
+                    
+                    // Perfect Jump Check!
+                    let distToLeft = Math.abs((pT.x + pT.w) - pt.x);
+                    let distToRight = Math.abs(pT.x - (pt.x + pt.w));
+                    let isPerfect = distToLeft < 15 || distToRight < 15;
+                    
+                    if (isPerfect && platLogic.type !== 2) {
+                        pV.vy = JUMP_FORCE * 1.35;
+                        SFX.spring();
+                        addShake(8);
+                        spawnFloatingText("PARFAIT !", pT.x, pT.y - 10, '#00e5ff');
+                        score += 20;
+                        spawnParticles(pT.x + pT.w / 2, pT.y + pT.h, '#00e5ff', 20, 200);
+                    } else {
+                        pV.vy = JUMP_FORCE;
+                        SFX.jump();
+                        spawnParticles(pT.x + pT.w / 2, pT.y + pT.h, '#fff', 5, 80);
+                    }
+                    
                     if (platLogic.type === 2) {
                         platLogic.broken = true;
                         platLogic.respawnTimer = 1.5;
@@ -425,13 +483,42 @@ function SpawnerSystem() {
 // --- RENDER SYSTEM ---
 function renderSystem(dt) {
     ctx.clearRect(0, 0, cw, ch);
-    
-    // Sunny Sky Gradient
+
+    // Dynamic Sky Gradient based on altitude
+    let currentAlt = Math.max(0, -cameraY);
+    let r1, g1, b1, r2, g2, b2;
+    if (currentAlt < 5000) {
+        let p = currentAlt / 5000;
+        r1 = lerpColor(79, 255, p); g1 = lerpColor(195, 112, p); b1 = lerpColor(247, 67, p); // Cyan to Orange Red
+        r2 = lerpColor(225, 255, p); g2 = lerpColor(245, 193, p); b2 = lerpColor(254, 7, p);
+    } else if (currentAlt < 10000) {
+        let p = (currentAlt - 5000) / 5000;
+        r1 = lerpColor(255, 10, p); g1 = lerpColor(112, 10, p); b1 = lerpColor(67, 30, p); // Sunset to Deep Space
+        r2 = lerpColor(255, 10, p); g2 = lerpColor(193, 10, p); b2 = lerpColor(7, 40, p);
+    } else {
+        r1 = 10; g1 = 10; b1 = 30; r2 = 10; g2 = 10; b2 = 40; // Deep Space
+    }
+
     let grad = ctx.createLinearGradient(0, 0, 0, ch);
-    grad.addColorStop(0, '#4fc3f7');
-    grad.addColorStop(1, '#e1f5fe');
+    grad.addColorStop(0, `rgb(${r1},${g1},${b1})`);
+    grad.addColorStop(1, `rgb(${r2},${g2},${b2})`);
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, cw, ch);
+
+    // Fade in stars for Space!
+    if (r1 < 100) {
+        let starAlpha = 1 - (r1 / 100);
+        ctx.globalAlpha = starAlpha;
+        ctx.fillStyle = '#fff';
+        stars.forEach(s => {
+            let sx = s.x % cw;
+            let sy = ((s.y - cameraY*0.05) % ch + ch) % ch;
+            if (Math.random() > 0.99) ctx.fillStyle = '#00e5ff'; // twinkling
+            else ctx.fillStyle = '#fff';
+            ctx.fillRect(sx, sy, s.size, s.size);
+        });
+        ctx.globalAlpha = 1;
+    }
 
     // Deep Parallax Clouds
     clouds.forEach(c => {
@@ -439,16 +526,17 @@ function renderSystem(dt) {
         let depthSpeed = c.speed * 0.15;
         let period = ch + 400;
         let sy = ((c.y - cameraY * depthSpeed) % period + period) % period - 200;
-        
-        ctx.globalAlpha = c.opacity;
-        
+
+        let cloudAlpha = c.opacity * Math.max(0, (r1 - 50) / 205); // Fade clouds at night
+        ctx.globalAlpha = cloudAlpha;
+
         // Slight drop shadow for volume
         ctx.fillStyle = 'rgba(0,0,0,0.05)';
         ctx.fillRect(sx, sy + 4, c.w, c.h);
         ctx.fillRect(sx + c.w * 0.1, sy - c.h * 0.4 + 4, c.w * 0.4, c.h * 0.4);
         ctx.fillRect(sx + c.w * 0.4, sy - c.h * 0.7 + 4, c.w * 0.5, c.h * 0.7);
         ctx.fillRect(sx + c.w * 0.8, sy - c.h * 0.2 + 4, c.w * 0.3, c.h * 0.2);
-        
+
         ctx.fillStyle = '#ffffff';
         // Draw pixelated chunky cloud
         ctx.fillRect(sx, sy, c.w, c.h);
@@ -459,17 +547,17 @@ function renderSystem(dt) {
     ctx.globalAlpha = 1;
 
     ctx.save();
-    
+
     // Tour de l'Europe Facade Parallax
     let parallaxY = cameraY * 0.4;
     let windowWidth = 60;
     let pillarWidth = 40;
     let floorHeight = 80;
     let bandHeight = 15;
-    
+
     let startY = Math.floor(parallaxY / floorHeight) * floorHeight;
     let endY = startY + ch + floorHeight * 2;
-    
+
     ctx.translate(0, -parallaxY);
 
     // Calculate centered tower dimensions
@@ -486,21 +574,21 @@ function renderSystem(dt) {
     // Base wall
     ctx.fillStyle = windowFrame;
     ctx.fillRect(towerX, startY, towerWidth, endY - startY);
-    
+
     // Draw floors
     for (let y = startY; y < endY; y += floorHeight) {
         let wy = y + bandHeight;
         let wh = floorHeight - bandHeight;
-        
+
         for (let col = 0; col < towerColumns; col++) {
             let x = towerX + pillarWidth + col * (windowWidth + pillarWidth);
             let rnd = Math.sin((y + x) * 123.456) * 10000;
             let r = rnd - Math.floor(rnd);
-            
+
             // Glass
             ctx.fillStyle = windowGlass;
             ctx.fillRect(x + 2, wy + 2, windowWidth - 4, wh - 4);
-            
+
             // Blinds
             if (r > 0.4) {
                 let blindH = (r - 0.4) / 0.6 * (wh - 4);
@@ -512,12 +600,12 @@ function renderSystem(dt) {
                 }
             }
         }
-        
+
         // Horizontal band
         ctx.fillStyle = concDark;
         ctx.fillRect(towerX, y, towerWidth, bandHeight);
     }
-    
+
     // Vertical pillars
     for (let col = 0; col <= towerColumns; col++) {
         let x = towerX + col * (windowWidth + pillarWidth);
@@ -529,7 +617,7 @@ function renderSystem(dt) {
         ctx.fillStyle = 'rgba(255,255,255,0.2)';
         ctx.fillRect(x, startY, 5, endY - startY);
     }
-    
+
     ctx.restore();
     ctx.save();
 
@@ -574,12 +662,12 @@ function renderSystem(dt) {
             // Beam body
             ctx.fillStyle = base;
             ctx.fillRect(t.x, t.y, t.w, t.h);
-            
+
             ctx.fillStyle = high;
-            ctx.fillRect(t.x, t.y, t.w, t.h/4);
-            
+            ctx.fillRect(t.x, t.y, t.w, t.h / 4);
+
             ctx.fillStyle = shad;
-            ctx.fillRect(t.x, t.y + t.h - t.h/4, t.w, t.h/4);
+            ctx.fillRect(t.x, t.y + t.h - t.h / 4, t.w, t.h / 4);
 
             // Stripes for Moving Platforms
             if (pType.type === 1) {
@@ -588,7 +676,7 @@ function renderSystem(dt) {
                 ctx.rect(t.x, t.y, t.w, t.h);
                 ctx.clip();
                 ctx.fillStyle = '#212121';
-                for(let i = -t.h; i < t.w; i += 20) {
+                for (let i = -t.h; i < t.w; i += 20) {
                     ctx.beginPath();
                     ctx.moveTo(t.x + i + 10, t.y);
                     ctx.lineTo(t.x + i + 20, t.y);
@@ -601,10 +689,10 @@ function renderSystem(dt) {
 
             // Rivets
             ctx.fillStyle = shad;
-            for(let rx = 10; rx < t.w - 10; rx += 16) {
-                ctx.fillRect(t.x + rx, t.y + t.h/2 - 2, 4, 4);
+            for (let rx = 10; rx < t.w - 10; rx += 16) {
+                ctx.fillRect(t.x + rx, t.y + t.h / 2 - 2, 4, 4);
                 ctx.fillStyle = high;
-                ctx.fillRect(t.x + rx, t.y + t.h/2 - 3, 2, 2);
+                ctx.fillRect(t.x + rx, t.y + t.h / 2 - 3, 2, 2);
                 ctx.fillStyle = shad;
             }
 
@@ -618,7 +706,7 @@ function renderSystem(dt) {
                 ctx.fillStyle = 'rgba(255, 87, 34, 0.5)';
                 ctx.fillRect(t.x, t.y - 6 - pulse, t.w, 6 + pulse);
                 ctx.fillStyle = 'rgba(255, 204, 128, 0.8)';
-                ctx.fillRect(t.x + 4, t.y - 2 - pulse/2, t.w - 8, 2);
+                ctx.fillRect(t.x + 4, t.y - 2 - pulse / 2, t.w - 8, 2);
             }
         }
         else if (e.hasComponent('bonus')) {
@@ -724,7 +812,62 @@ function renderSystem(dt) {
     });
     ctx.globalAlpha = 1;
 
+    // Floating Texts
+    floatingTexts.forEach(ft => {
+        ctx.globalAlpha = ft.life;
+        ctx.fillStyle = ft.color;
+        ctx.font = '16px "Press Start 2P"';
+        ctx.textAlign = 'center';
+        ctx.shadowColor = '#000';
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 2;
+        ctx.fillText(ft.text, ft.x, ft.y);
+        ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+        ft.y -= dt * 40;
+        ft.life -= dt * 0.8;
+    });
+    ctx.globalAlpha = 1;
+    floatingTexts = floatingTexts.filter(ft => ft.life > 0);
+
     ctx.restore();
+}
+
+let bgmTimer = 0;
+let bgmStep = 0;
+const bgmNotes = [220, 261.63, 329.63, 392, 440, 523.25]; // A minor pentatonic
+
+function MusicSystem(dt) {
+    if (!soundEnabled || !audioCtx || currentState !== GAME_STATE.PLAYING) return;
+    
+    let pEnt = getEntities(['player'])[0];
+    let isRocket = pEnt && pEnt.getComponent('player').rocketTime > 0;
+    
+    let currentAlt = Math.max(0, Math.floor(-cameraY / 10));
+    let baseInterval = Math.max(0.08, 0.2 - (currentAlt / 20000));
+    if (isRocket) baseInterval = 0.08;
+    
+    bgmTimer -= dt;
+    if (bgmTimer <= 0) {
+        bgmTimer = baseInterval;
+        let note = bgmNotes[bgmStep % bgmNotes.length];
+        bgmStep++;
+        
+        if (Math.random() > 0.8) note *= 2; 
+        if (isRocket) note *= 2;
+        
+        let osc = audioCtx.createOscillator();
+        let gain = audioCtx.createGain();
+        osc.type = isRocket ? 'square' : 'sine';
+        osc.frequency.setValueAtTime(note, audioCtx.currentTime);
+        
+        gain.gain.setValueAtTime(0.03, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + baseInterval * 1.5);
+        
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + baseInterval * 1.5);
+    }
 }
 
 // --- GAME LOOP ---
@@ -758,7 +901,7 @@ function gameLoop(time) {
             $comboEl.classList.add('hidden');
         } else if (comboCount > 1) {
             $comboEl.classList.remove('hidden');
-            $comboEl.innerText = `COMBO x${comboCount}!`;
+            $comboEl.innerText = `COMBO x${comboCount} !`;
         }
     }
 
@@ -766,6 +909,7 @@ function gameLoop(time) {
     PhysicsSystem(dt);
     CollisionSystem(dt);
     SpawnerSystem();
+    MusicSystem(dt);
 
     // Cleanup
     entities.forEach(e => {
@@ -842,6 +986,8 @@ function togglePause() {
 
 function resumeGame() {
     $pauseScreen.classList.add('hidden');
+    if (document.activeElement) document.activeElement.blur();
+    cancelAnimationFrame(animationFrameId);
     currentState = GAME_STATE.PLAYING;
     lastTime = performance.now();
     animationFrameId = requestAnimationFrame(gameLoop);
@@ -909,6 +1055,10 @@ function startGame() {
     $gameOverScreen.classList.add('hidden');
     $pauseScreen.classList.add('hidden');
     $pauseBtn.style.display = 'block';
+    
+    if (document.activeElement) document.activeElement.blur();
+    cancelAnimationFrame(animationFrameId);
+
     currentState = GAME_STATE.PLAYING;
     initGame();
     requestAnimationFrame(t => {
@@ -919,4 +1069,4 @@ function startGame() {
 
 // --- INIT ---
 let initialHS = localStorage.getItem('pixelJumperHS') || 0;
-$highScoreMenu.innerText = 'HIGH SCORE: ' + initialHS + 'M';
+$highScoreMenu.innerText = 'MEILLEUR SCORE : ' + initialHS + 'M';
