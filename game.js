@@ -1,11 +1,11 @@
 // --- CONSTANTS & SETTINGS ---
-const GRAVITY = 1800;
-const JUMP_FORCE = -1000;
-const SPRING_FORCE = -1600;
-const MAX_SPEED = 600;
-const ACCELERATION = 4000;
-const DECELERATION = 4000;
-const PLATFORM_WIDTH = 75;
+const GRAVITY = 1400;
+const JUMP_FORCE = -850;
+const SPRING_FORCE = -1400;
+const MAX_SPEED = 500;
+const ACCELERATION = 3500;
+const DECELERATION = 3500;
+const PLATFORM_WIDTH = 80;
 const PLATFORM_HEIGHT = 16;
 
 // --- AUDIO SYSTEM ---
@@ -415,7 +415,7 @@ function SpawnerSystem() {
         let baseY = 80;
         let randomY = 60 + (difficulty * 120);
         let gapY = baseY + Math.random() * randomY;
-        if (gapY > 260) gapY = 260; // Max jump limit
+        if (gapY > 220) gapY = 220; // Reduced max jump gap for mobile balancing
 
         highestPlatY -= gapY;
 
@@ -550,10 +550,13 @@ function renderSystem(dt) {
 
     // Tour de l'Europe Facade Parallax
     let parallaxY = cameraY * 0.4;
-    let windowWidth = 60;
-    let pillarWidth = 40;
-    let floorHeight = 80;
-    let bandHeight = 15;
+    
+    // Scale for mobile explicitly to fix 2-window issue!
+    let isMobile = cw < 600;
+    let windowWidth = isMobile ? 30 : 60;
+    let pillarWidth = isMobile ? 20 : 40;
+    let floorHeight = isMobile ? 45 : 80;
+    let bandHeight = isMobile ? 8 : 15;
 
     let startY = Math.floor(parallaxY / floorHeight) * floorHeight;
     let endY = startY + ch + floorHeight * 2;
@@ -592,11 +595,14 @@ function renderSystem(dt) {
             // Blinds
             if (r > 0.4) {
                 let blindH = (r - 0.4) / 0.6 * (wh - 4);
-                ctx.fillStyle = blindColor;
+                ctx.fillStyle = isMobile ? '#d4d0be' : blindColor; // slightly darker block for mobile
                 ctx.fillRect(x + 2, wy + 2, windowWidth - 4, blindH);
-                ctx.fillStyle = 'rgba(0,0,0,0.1)';
-                for (let b = wy + 2; b < wy + 2 + blindH; b += 4) {
-                    ctx.fillRect(x + 2, b, windowWidth - 4, 1);
+                
+                if (!isMobile) {
+                    ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                    for (let b = wy + 2; b < wy + 2 + blindH; b += 4) {
+                        ctx.fillRect(x + 2, b, windowWidth - 4, 1);
+                    }
                 }
             }
         }
