@@ -28,10 +28,25 @@
         <div id="menuScreen" class="screen">
             <div class="title">PIXEL<br>JUMPER</div>
             <button class="button" id="startBtn">JOUER</button>
+            <button class="button" id="settingsBtn" style="font-size: 14px; padding: 10px 20px;">PARAMÈTRES</button>
             <div class="instructions">
                 INCLINEZ LE TÉLÉPHONE OU TOUCHEZ LES BORDS POUR BOUGER.<br><br>ÉVITEZ LES PIQUES ROUGES.<br><br>RÉCOLTEZ LES PIÈCES POUR DES COMBOS !
             </div>
             <div class="stats" id="highScoreMenu">MEILLEUR SCORE : 0M</div>
+        </div>
+
+        <div id="settingsScreen" class="screen hidden">
+            <div class="title" style="font-size: 24px; color: #fff;">PARAMÈTRES</div>
+            <div class="stat-row">
+                <label style="cursor:pointer; display:flex; align-items:center; gap:10px;">
+                    <input type="checkbox" id="gyroToggle" style="width:24px; height:24px;">
+                    ACTIVER GYROSCOPE
+                </label>
+            </div>
+            <div class="instructions" style="margin-top:20px;">
+                (DÉSACTIVER POUR JOUER UNIQUEMENT EN TOUCHANT L'ÉCRAN)
+            </div>
+            <button class="button" id="closeSettingsBtn" style="margin-top: 40px;">RETOUR</button>
         </div>
 
         <div id="pauseScreen" class="screen hidden">

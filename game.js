@@ -119,6 +119,7 @@ const $scoreEl = document.getElementById('scoreEl');
 const $moneyEl = document.getElementById('moneyEl');
 const $comboEl = document.getElementById('comboEl');
 const $menuScreen = document.getElementById('menuScreen');
+const $settingsScreen = document.getElementById('settingsScreen');
 const $gameOverScreen = document.getElementById('gameOverScreen');
 const $pauseScreen = document.getElementById('pauseScreen');
 const $finalScore = document.getElementById('finalScore');
@@ -126,6 +127,9 @@ const $finalCoins = document.getElementById('finalCoins');
 const $highScoreMenu = document.getElementById('highScoreMenu');
 const $pauseBtn = document.getElementById('pauseBtn');
 const $soundBtn = document.getElementById('soundBtn');
+const $settingsBtn = document.getElementById('settingsBtn');
+const $closeSettingsBtn = document.getElementById('closeSettingsBtn');
+const $gyroToggle = document.getElementById('gyroToggle');
 
 // --- SETUP ---
 function resize() {
@@ -1177,7 +1181,10 @@ function updateTouch(e) {
     }
 }
 
+let gyroEnabled = localStorage.getItem('pixelJumperGyro') !== 'false';
+
 function handleOrientation(e) {
+    if (!gyroEnabled) { input.tiltX = 0; return; }
     if (e.gamma != null) {
         let g = Number(e.gamma) || 0;
         if (g > 30) g = 30; // Max speed at 30 deg
@@ -1190,6 +1197,20 @@ document.getElementById('startBtn').addEventListener('click', attemptStart);
 document.getElementById('restartBtn').addEventListener('click', attemptStart);
 document.getElementById('resumeBtn').addEventListener('click', resumeGame);
 $pauseBtn.addEventListener('click', togglePause);
+
+$settingsBtn.addEventListener('click', () => {
+    $menuScreen.classList.add('hidden');
+    $settingsScreen.classList.remove('hidden');
+    $gyroToggle.checked = gyroEnabled;
+});
+$closeSettingsBtn.addEventListener('click', () => {
+    $settingsScreen.classList.add('hidden');
+    $menuScreen.classList.remove('hidden');
+});
+$gyroToggle.addEventListener('change', (e) => {
+    gyroEnabled = e.target.checked;
+    localStorage.setItem('pixelJumperGyro', gyroEnabled);
+});
 
 $soundBtn.addEventListener('click', () => {
     soundEnabled = !soundEnabled;
@@ -1214,6 +1235,7 @@ function attemptStart() {
 
 function startGame() {
     $menuScreen.classList.add('hidden');
+    $settingsScreen.classList.add('hidden');
     $gameOverScreen.classList.add('hidden');
     $pauseScreen.classList.add('hidden');
     $pauseBtn.style.display = 'block';
