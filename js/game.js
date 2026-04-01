@@ -11,11 +11,21 @@ const PLATFORM_HEIGHT = 16;
 // --- AUDIO SYSTEM ---
 const AudioContext = window.AudioContext || window.webkitAudioContext;
 let audioCtx = null;
-let soundEnabled = true;
+let soundEnabled = localStorage.getItem('pixelJumperSound') !== 'false';
 
 function initAudio() {
     if (!AudioContext) return; // Prevent crashes on unsupported browsers
-    if (!audioCtx) audioCtx = new AudioContext();
+    if (!audioCtx) {
+        audioCtx = new AudioContext();
+        // Joue un son silencieux immédiatement pour débloquer l'API Web Audio sur mobile (iOS/Android)
+        let osc = audioCtx.createOscillator();
+        let gain = audioCtx.createGain();
+        gain.gain.value = 0;
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.1);
+    }
     if (audioCtx.state === 'suspended') audioCtx.resume();
 }
 
@@ -125,6 +135,11 @@ const $pauseScreen = document.getElementById('pauseScreen');
 const $finalScore = document.getElementById('finalScore');
 const $finalCoins = document.getElementById('finalCoins');
 const $highScoreMenu = document.getElementById('highScoreMenu');
+const $countdownScreen = document.getElementById('countdownScreen');
+const $resumeCountdown = document.getElementById('resumeCountdown');
+const $statGames = document.getElementById('statGames');
+const $statAlt = document.getElementById('statAlt');
+const $statCoins = document.getElementById('statCoins');
 const $pauseBtn = document.getElementById('pauseBtn');
 const $soundBtn = document.getElementById('soundBtn');
 const $settingsBtn = document.getElementById('settingsBtn');
@@ -1143,6 +1158,17 @@ function setGameOver() {
     let pEnt = getEntities(['player'])[0];
     let coinsRound = pEnt ? pEnt.getComponent('player').coins : 0;
 
+    let totalGames = parseInt(localStorage.getItem('pjTotalGames') || '0') + 1;
+    let totalCoins = parseInt(localStorage.getItem('pjTotalCoins') || '0') + coinsRound;
+    let totalAlt = parseInt(localStorage.getItem('pjTotalAlt') || '0') + score;
+    localStorage.setItem('pjTotalGames', totalGames);
+    localStorage.setItem('pjTotalCoins', totalCoins);
+    localStorage.setItem('pjTotalAlt', totalAlt);
+    
+    $statGames.innerText = totalGames;
+    $statCoins.innerText = totalCoins;
+    $statAlt.innerText = totalAlt;
+
     if (score > maxHS) localStorage.setItem('pixelJumperHS', score);
 
     $finalScore.innerText = score;
@@ -1162,17 +1188,43 @@ function togglePause() {
 
 function resumeGame() {
     $pauseScreen.classList.add('hidden');
-    if (document.activeElement) document.activeElement.blur();
-    cancelAnimationFrame(animationFrameId);
-    currentState = GAME_STATE.PLAYING;
-    lastTime = performance.now();
-    animationFrameId = requestAnimationFrame(gameLoop);
+    $countdownScreen.classList.remove('hidden');
+    $resumeCountdown.innerText = '3';
+    
+    let count = 3;
+    let timer = setInterval(() => {
+        count--;
+        if (count > 0) {
+            $resumeCountdown.innerText = count;
+        } else {
+            clearInterval(timer);
+            $countdownScreen.classList.add('hidden');
+            if (document.activeElement) document.activeElement.blur();
+            cancelAnimationFrame(animationFrameId);
+            currentState = GAME_STATE.PLAYING;
+            lastTime = performance.now();
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+    }, 1000);
 }
 
 // --- INPUT HANDLING ---
 window.addEventListener('keydown', e => {
     input.keys[e.code] = true;
     if (e.code === 'Escape' || e.code === 'KeyP') togglePause();
+    if ((e.code === 'Space' || e.code === 'Enter') && (currentState === GAME_STATE.MENU || currentState === GAME_STATE.GAMEOVER)) {
+        attemptStart();
+    }
+    if (e.code === 'KeyM') {
+        soundEnabled = !soundEnabled;
+        $soundBtn.innerText = soundEnabled ? '🔊' : '🔇';
+        localStorage.setItem('pixelJumperSound', soundEnabled);
+        if (soundEnabled) initAudio();
+    }
+});
+
+window.addEventListener('blur', () => {
+    if (currentState === GAME_STATE.PLAYING) togglePause();
 });
 window.addEventListener('keyup', e => input.keys[e.code] = false);
 
@@ -1226,6 +1278,7 @@ $gyroToggle.addEventListener('change', (e) => {
 $soundBtn.addEventListener('click', () => {
     soundEnabled = !soundEnabled;
     $soundBtn.innerText = soundEnabled ? '🔊' : '🔇';
+    localStorage.setItem('pixelJumperSound', soundEnabled);
     if (soundEnabled) initAudio();
 });
 
@@ -1265,3 +1318,7 @@ function startGame() {
 // --- INIT ---
 let initialHS = localStorage.getItem('pixelJumperHS') || 0;
 $highScoreMenu.innerText = 'MEILLEUR SCORE : ' + initialHS + 'M';
+$statGames.innerText = localStorage.getItem('pjTotalGames') || 0;
+$statCoins.innerText = localStorage.getItem('pjTotalCoins') || 0;
+$statAlt.innerText = localStorage.getItem('pjTotalAlt') || 0;
+$soundBtn.innerText = soundEnabled ? '🔊' : '🔇';

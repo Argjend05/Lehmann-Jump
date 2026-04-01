@@ -259,3 +259,46 @@ html {
 .final-stat-row {
     margin-bottom: 40px;
 }
+
+.lifetime-stats {
+    margin-top: 30px;
+    padding: 15px;
+    background: rgba(0, 0, 0, 0.5);
+    border: 2px solid #555;
+    border-radius: 8px;
+    width: 80%;
+    max-width: 400px;
+    text-align: left;
+}
+
+.lifetime-stats-title {
+    color: #ffeb3b;
+    font-size: 18px;
+    text-align: center;
+    margin-bottom: 10px;
+    text-shadow: 2px 2px 0 #000;
+}
+
+.stats-grid div {
+    font-size: 14px;
+    margin-bottom: 8px;
+    color: #fff;
+    text-shadow: 1px 1px 0 #000;
+}
+
+#countdownScreen {
+    background: rgba(13, 13, 20, 0.6);
+}
+
+.countdown-text {
+    font-size: 120px;
+    color: #00e5ff;
+    text-shadow: 6px 6px 0 #000;
+    animation: zoomPulse 1s ease-out infinite;
+}
+
+@keyframes zoomPulse {
+    0% { transform: scale(0.5); opacity: 0; }
+    30% { transform: scale(1.2); opacity: 1; }
+    100% { transform: scale(1); opacity: 0; }
+}

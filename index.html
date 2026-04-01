@@ -45,12 +45,26 @@
             <div class="instructions instructions-settings">
                 (DESACTIVER POUR JOUER UNIQUEMENT EN TOUCHANT L'ECRAN)
             </div>
+
+            <div class="lifetime-stats">
+                <div class="lifetime-stats-title">STATISTIQUES GLOBALES</div>
+                <div class="stats-grid">
+                    <div>PARTIES JOUEES : <span id="statGames" class="highlight">0</span></div>
+                    <div>ALTITUDE TOTALE : <span id="statAlt" class="highlight">0</span>m</div>
+                    <div>PIECES RECOLTEES : <span id="statCoins" class="highlight">0</span></div>
+                </div>
+            </div>
+
             <button class="button" id="closeSettingsBtn">RETOUR</button>
         </div>
 
         <div id="pauseScreen" class="screen hidden">
             <div class="title pause-title">PAUSE</div>
             <button class="button" id="resumeBtn">REPRENDRE</button>
+        </div>
+
+        <div id="countdownScreen" class="screen hidden">
+            <div id="resumeCountdown" class="countdown-text">3</div>
         </div>
 
         <div id="gameOverScreen" class="screen hidden">
