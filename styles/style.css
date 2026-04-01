@@ -2,6 +2,11 @@
     box-sizing: border-box;
 }
 
+@font-face {
+    font-family: 'Joyquest';
+    src: url('../fonts/JoyquestSample.ttf') format('truetype');
+}
+
 body,
 html {
     margin: 0;
@@ -10,7 +15,7 @@ html {
     height: 100%;
     background-color: #0d0d14;
     overflow: hidden;
-    font-family: 'Press Start 2P', monospace;
+    font-family: 'Joyquest', monospace;
     touch-action: none;
     user-select: none;
 }
@@ -205,4 +210,52 @@ html {
 
 .highlight {
     color: #ffeb3b;
+}
+
+/* Styles moved from inline to CSS */
+#pauseBtn {
+    right: 20px;
+    display: none;
+}
+
+#soundBtn {
+    right: 70px;
+}
+
+#settingsBtn {
+    font-size: 14px;
+    padding: 10px 20px;
+}
+
+.params-title {
+    font-size: 24px;
+    color: #fff;
+}
+
+.gyro-label {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#gyroToggle {
+    width: 24px;
+    height: 24px;
+}
+
+.instructions-settings {
+    margin-top: 20px;
+}
+
+#closeSettingsBtn {
+    margin-top: 40px;
+}
+
+.pause-title {
+    color: #fff;
+}
+
+.final-stat-row {
+    margin-bottom: 40px;
 }

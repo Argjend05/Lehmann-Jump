@@ -6,15 +6,14 @@
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Infinite Pixel Jumper Deluxe</title>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="styles/style.css">
 </head>
 
 <body>
     <canvas id="gameCanvas"></canvas>
 
-    <button id="pauseBtn" class="top-btn" style="right: 20px; display: none;">⏸</button>
-    <button id="soundBtn" class="top-btn" style="right: 70px;">🔊</button>
+    <button id="pauseBtn" class="top-btn">⏸</button>
+    <button id="soundBtn" class="top-btn">🔊</button>
 
     <div id="ui-layer">
         <div class="hud-top">
@@ -26,44 +25,44 @@
         </div>
 
         <div id="menuScreen" class="screen">
-            <div class="title">PIXEL<br>JUMPER</div>
+            <div class="title">LEHMANN<br>JUMP</div>
             <button class="button" id="startBtn">JOUER</button>
-            <button class="button" id="settingsBtn" style="font-size: 14px; padding: 10px 20px;">PARAMÈTRES</button>
+            <button class="button" id="settingsBtn">PARAMETRES</button>
             <div class="instructions">
-                INCLINEZ LE TÉLÉPHONE OU TOUCHEZ LES BORDS POUR BOUGER.<br><br>ÉVITEZ LES PIQUES ROUGES.<br><br>RÉCOLTEZ LES PIÈCES POUR DES COMBOS !
+                INCLINEZ LE TELEPHONE OU TOUCHEZ LES BORDS POUR BOUGER.<br><br>EVITEZ LES PIQUES ROUGES.<br><br>RECOLTEZ LES PIECES POUR DES COMBOS !
             </div>
             <div class="stats" id="highScoreMenu">MEILLEUR SCORE : 0M</div>
         </div>
 
         <div id="settingsScreen" class="screen hidden">
-            <div class="title" style="font-size: 24px; color: #fff;">PARAMÈTRES</div>
+            <div class="title params-title">PARAMETRES</div>
             <div class="stat-row">
-                <label style="cursor:pointer; display:flex; align-items:center; gap:10px;">
-                    <input type="checkbox" id="gyroToggle" style="width:24px; height:24px;">
+                <label class="gyro-label">
+                    <input type="checkbox" id="gyroToggle">
                     ACTIVER GYROSCOPE
                 </label>
             </div>
-            <div class="instructions" style="margin-top:20px;">
-                (DÉSACTIVER POUR JOUER UNIQUEMENT EN TOUCHANT L'ÉCRAN)
+            <div class="instructions instructions-settings">
+                (DESACTIVER POUR JOUER UNIQUEMENT EN TOUCHANT L'ECRAN)
             </div>
-            <button class="button" id="closeSettingsBtn" style="margin-top: 40px;">RETOUR</button>
+            <button class="button" id="closeSettingsBtn">RETOUR</button>
         </div>
 
         <div id="pauseScreen" class="screen hidden">
-            <div class="title" style="color: #fff;">PAUSE</div>
+            <div class="title pause-title">PAUSE</div>
             <button class="button" id="resumeBtn">REPRENDRE</button>
         </div>
 
         <div id="gameOverScreen" class="screen hidden">
-            <div class="game-over-title">PARTIE TERMINÉE</div>
+            <div class="game-over-title">PARTIE TERMINEE</div>
             <div class="stat-row">ALTITUDE : <span id="finalScore" class="highlight">0</span>m</div>
-            <div class="stat-row" style="margin-bottom: 40px;">PIÈCES : <span id="finalCoins" class="highlight">0</span>
+            <div class="stat-row final-stat-row">PIECES : <span id="finalCoins" class="highlight">0</span>
             </div>
-            <button class="button" id="restartBtn">RÉESSAYER</button>
+            <button class="button" id="restartBtn">REESSAYER</button>
         </div>
     </div>
 
-    <script src="game.js"></script>
+    <script src="js/game.js"></script>
 </body>
 
 </html>
