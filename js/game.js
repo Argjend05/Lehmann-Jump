@@ -539,10 +539,10 @@ function SpawnerSystem() {
     }
 
     let isSpace = highestPlatY < -15000;
-    if (isSpace && Math.random() < 0.03) {
+    if (isSpace && Math.random() < 0.005) { // Reduced spawn rate significantly
         let m = new Entity();
         m.addComponent(Transform(Math.random() * cw, cameraY - ch, 20, 40));
-        m.addComponent(Velocity((Math.random()-0.5)*200, 800 + Math.random()*400));
+        m.addComponent(Velocity((Math.random()-0.5) * 50, 300 + Math.random() * 200)); // Much slower horizontal and vertical speed
         m.addComponent({name: 'hazard'});
         addEntity(m);
     }
@@ -893,6 +893,17 @@ function renderSystem(dt) {
     // Render Hazards
     getEntities(['hazard', 'transform']).forEach(h => {
         let t = h.getComponent('transform');
+        
+        // Warning indicator if meteor is above the screen
+        if (t.y + t.h < cameraY) {
+            ctx.fillStyle = `rgba(255, 0, 0, ${0.3 + 0.7 * Math.abs(Math.sin(performance.now() / 150))})`;
+            ctx.beginPath();
+            ctx.moveTo(t.x + t.w/2 - 15, cameraY + 10);
+            ctx.lineTo(t.x + t.w/2 + 15, cameraY + 10);
+            ctx.lineTo(t.x + t.w/2, cameraY + 30);
+            ctx.fill();
+        }
+
         ctx.fillStyle = '#f44336';
         ctx.beginPath();
         ctx.arc(t.x + t.w/2, t.y + t.h/2, t.w/2, 0, Math.PI*2);
