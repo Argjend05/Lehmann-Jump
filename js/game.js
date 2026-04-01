@@ -399,19 +399,19 @@ function CollisionSystem(dt) {
         if (platLogic.broken || (platLogic.type === 6 && !platLogic.active)) return;
         let pt = plat.getComponent('transform');
 
-        // Spike collision (instant death, anywhere) 
+        // Spike collision (death only when landing on top) 
         let spikeHitbox = { x: pt.x + 4, y: pt.y + 4, w: pt.w - 8, h: pt.h - 4 }; // Forgiving hitbox
         if (platLogic.type === 3 && aabb(pT, spikeHitbox)) {
-            if (pLogic.rocketTime <= 0) {
-                document.getElementById('ui-layer').style.boxShadow = 'inset 0 0 150px rgba(255,0,0,0.8)';
-                setTimeout(() => document.getElementById('ui-layer').style.boxShadow = 'none', 500);
-                setGameOver();
-                return;
-            } else {
+            if (pLogic.rocketTime > 0) {
                 platLogic.broken = true;
                 platLogic.respawnTimer = 3;
                 SFX.break(); addShake(15);
                 spawnParticles(pt.x + pt.w / 2, pt.y + pt.h / 2, '#f44336', 15, 200);
+            } else if (pV.vy > 0 && (pT.y + pT.h - pV.vy * dt) <= pt.y + 24) {
+                document.getElementById('ui-layer').style.boxShadow = 'inset 0 0 150px rgba(255,0,0,0.8)';
+                setTimeout(() => document.getElementById('ui-layer').style.boxShadow = 'none', 500);
+                setGameOver();
+                return;
             }
         }
 
