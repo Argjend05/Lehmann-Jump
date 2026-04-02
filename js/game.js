@@ -113,6 +113,7 @@ let cameraY = 0;
 let targetCameraY = 0;
 let highestPlatY = ch;
 let score = 0;
+let infiniteMode = false;
 let lastTime = 0;
 let animationFrameId;
 
@@ -120,12 +121,15 @@ let screenShake = 0;
 let comboCount = 0;
 let comboTimer = 0;
 
-const GAME_STATE = { MENU: 0, PLAYING: 1, GAMEOVER: 2, PAUSE: 3 };
+const GAME_STATE = { MENU: 0, PLAYING: 1, GAMEOVER: 2, PAUSE: 3, VICTORY: 4 };
 let currentState = GAME_STATE.MENU;
 const input = { tiltX: 0, touchLeft: false, touchRight: false, keys: {} };
 
 // --- DOM ELEMENTS ---
 const $scoreEl = document.getElementById('scoreEl');
+const $victoryScreen = document.getElementById('victoryScreen');
+const $victoryFinishBtn = document.getElementById('victoryFinishBtn');
+const $victoryContinueBtn = document.getElementById('victoryContinueBtn');
 const $moneyEl = document.getElementById('moneyEl');
 const $comboEl = document.getElementById('comboEl');
 const $menuScreen = document.getElementById('menuScreen');
@@ -1115,6 +1119,13 @@ function gameLoop(time) {
     // Update HUD
     let currentAlt = Math.max(0, Math.floor(-cameraY / 10));
     if (currentAlt > score) score = currentAlt;
+    
+    // Check Victory
+    if (score >= 1500 && !infiniteMode) {
+        setVictory();
+        return;
+    }
+
     $scoreEl.innerText = score + 'm';
     if (pEnt) $moneyEl.innerText = pEnt.getComponent('player').coins;
 }
@@ -1127,6 +1138,7 @@ function initGame() {
     cameraY = 0;
     targetCameraY = 0;
     score = 0;
+    infiniteMode = false;
     comboCount = 0;
     highestPlatY = ch;
     $scoreEl.innerText = '0m';
@@ -1174,6 +1186,13 @@ function setGameOver() {
     $finalScore.innerText = score;
     $finalCoins.innerText = coinsRound;
     $gameOverScreen.classList.remove('hidden');
+}
+
+function setVictory() {
+    currentState = GAME_STATE.VICTORY;
+    cancelAnimationFrame(animationFrameId);
+    $pauseBtn.style.display = 'none';
+    $victoryScreen.classList.remove('hidden');
 }
 
 function togglePause() {
@@ -1259,6 +1278,15 @@ function handleOrientation(e) {
 document.getElementById('startBtn').addEventListener('click', attemptStart);
 document.getElementById('restartBtn').addEventListener('click', attemptStart);
 document.getElementById('resumeBtn').addEventListener('click', resumeGame);
+$victoryFinishBtn.addEventListener('click', () => {
+    $victoryScreen.classList.add('hidden');
+    setGameOver(); 
+});
+$victoryContinueBtn.addEventListener('click', () => {
+    $victoryScreen.classList.add('hidden');
+    infiniteMode = true;
+    resumeGame();
+});
 $pauseBtn.addEventListener('click', togglePause);
 
 $settingsBtn.addEventListener('click', () => {
@@ -1302,6 +1330,7 @@ function startGame() {
     $settingsScreen.classList.add('hidden');
     $gameOverScreen.classList.add('hidden');
     $pauseScreen.classList.add('hidden');
+    if ($victoryScreen) $victoryScreen.classList.add('hidden');
     $pauseBtn.style.display = 'block';
     
     if (document.activeElement) document.activeElement.blur();
