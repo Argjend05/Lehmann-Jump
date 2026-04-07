@@ -59,6 +59,91 @@ const SFX = {
     magnet: () => playSound([600, 400, 600], 'sine', 0.2, 0.05)
 };
 
+// --- SAVE MANAGER & SHOP ---
+const DEFAULT_SAVE_DATA = {
+    coins: 0,
+    upgrades: {
+        magnetDuration: 0, // Level 0 to 5
+        rocketDuration: 0,
+        coinValue: 0
+    }
+};
+
+const UPGRADE_COSTS = {
+    magnetDuration: [100, 300, 700, 1500, 3000],
+    rocketDuration: [150, 400, 900, 2000, 4000],
+    coinValue: [200, 500, 1000, 2500, 5000]
+};
+
+const SaveManager = {
+    data: Object.assign({}, DEFAULT_SAVE_DATA),
+    load() {
+        try {
+            const saved = localStorage.getItem('lehmannJumpSave');
+            if (saved) {
+                let parsed = JSON.parse(saved);
+                this.data = { ...DEFAULT_SAVE_DATA, ...parsed, upgrades: { ...DEFAULT_SAVE_DATA.upgrades, ...(parsed.upgrades || {}) } };
+            }
+        } catch (e) {
+            console.error("Save load error", e);
+        }
+        this.updateUI();
+    },
+    save() {
+        localStorage.setItem('lehmannJumpSave', JSON.stringify(this.data));
+        this.updateUI();
+    },
+    addCoins(amount) {
+        this.data.coins += amount;
+        this.save();
+    },
+    buyUpgrade(upgradeId) {
+        let currentLevel = this.data.upgrades[upgradeId] || 0;
+        let cost = UPGRADE_COSTS[upgradeId][currentLevel];
+
+        if (cost && this.data.coins >= cost) {
+            this.data.coins -= cost;
+            this.data.upgrades[upgradeId]++;
+            this.save();
+            return true;
+        }
+        return false;
+    },
+    updateUI() {
+        let shopCoinsEl = document.getElementById('shopCoins');
+        if (shopCoinsEl) shopCoinsEl.innerText = this.data.coins;
+        
+        let mLevel = this.data.upgrades.magnetDuration;
+        let mCost = UPGRADE_COSTS.magnetDuration[mLevel];
+        let mBtn = document.getElementById('buyMagnetBtn');
+        if (mBtn) {
+            if (mCost) mBtn.innerText = `NIV ${mLevel} -> ${mLevel+1} (${mCost} Pièces)`;
+            else mBtn.innerText = "MAX";
+            mBtn.disabled = !mCost || this.data.coins < mCost;
+        }
+
+        let rLevel = this.data.upgrades.rocketDuration;
+        let rCost = UPGRADE_COSTS.rocketDuration[rLevel];
+        let rBtn = document.getElementById('buyRocketBtn');
+        if (rBtn) {
+            if (rCost) rBtn.innerText = `NIV ${rLevel} -> ${rLevel+1} (${rCost} Pièces)`;
+            else rBtn.innerText = "MAX";
+            rBtn.disabled = !rCost || this.data.coins < rCost;
+        }
+
+        let cLevel = this.data.upgrades.coinValue;
+        let cCost = UPGRADE_COSTS.coinValue[cLevel];
+        let cBtn = document.getElementById('buyCoinValueBtn');
+        if (cBtn) {
+            if (cCost) cBtn.innerText = `NIV ${cLevel} -> ${cLevel+1} (${cCost} Pièces)`;
+            else cBtn.innerText = "MAX";
+            cBtn.disabled = !cCost || this.data.coins < cCost;
+        }
+    }
+};
+
+SaveManager.load();
+
 // --- ECS FRAMEWORK ---
 class Entity {
     constructor() {
@@ -103,6 +188,9 @@ function GravityCmp(f) { return { name: 'gravity', force: f }; }
 function PlatformCmp(t) { return { name: 'platform', type: t, broken: false, respawnTimer: 0, speedX: (Math.random() > 0.5 ? 1 : -1) * (60 + Math.random() * 60) }; }
 function BonusCmp(t) { return { name: 'bonus', type: t }; } // 0:coin, 1:spring, 2:magnet, 3:rocket
 function PlayerCmp() { return { name: 'player', magnetTime: 0, rocketTime: 0, coins: 0 }; }
+function EnemyCmp(type, hp) { return { name: 'enemy', type, hp, attackTimer: 0 }; }
+function PatrolCmp(startX, range, speed) { return { name: 'patrol', startX, range, speed, direction: 1 }; }
+function ProjectileCmp(damage, owner) { return { name: 'projectile', damage, owner, life: 3.0 }; }
 
 // --- GLOBALS ---
 const canvas = document.getElementById('gameCanvas');
@@ -149,6 +237,12 @@ const $soundBtn = document.getElementById('soundBtn');
 const $settingsBtn = document.getElementById('settingsBtn');
 const $closeSettingsBtn = document.getElementById('closeSettingsBtn');
 const $gyroToggle = document.getElementById('gyroToggle');
+const $shopBtn = document.getElementById('shopBtn');
+const $shopScreen = document.getElementById('shopScreen');
+const $closeShopBtn = document.getElementById('closeShopBtn');
+const $buyMagnetBtn = document.getElementById('buyMagnetBtn');
+const $buyRocketBtn = document.getElementById('buyRocketBtn');
+const $buyCoinValueBtn = document.getElementById('buyCoinValueBtn');
 
 // --- SETUP ---
 function resize() {
@@ -379,7 +473,8 @@ function CollisionSystem(dt) {
         if (aabb(pT, bT)) {
             removeEntity(bEnt);
             if (bType === 0) {
-                pLogic.coins++;
+                let coinMultiplier = (SaveManager && SaveManager.data.upgrades.coinValue) ? 1 + SaveManager.data.upgrades.coinValue : 1;
+                pLogic.coins += coinMultiplier;
                 comboCount++;
                 comboTimer = 2.0; // 2 seconds to extend combo
                 let cMult = Math.min(10, comboCount); // max 10x
@@ -388,8 +483,16 @@ function CollisionSystem(dt) {
                 spawnParticles(bT.x + 10, bT.y + 10, '#ffeb3b', 5, 50);
             }
             if (bType === 1) { pV.vy = SPRING_FORCE; SFX.spring(); addShake(5); spawnParticles(pT.x + pT.w / 2, pT.y + pT.h, '#e91e63', 10); }
-            if (bType === 2) { pLogic.magnetTime = 8; SFX.magnet(); spawnParticles(bT.x + 10, bT.y + 10, '#9c27b0', 10); }
-            if (bType === 3) { pLogic.rocketTime = 4; SFX.rocket(); addShake(8); spawnParticles(bT.x + 10, bT.y + 10, '#ff5722', 15); }
+            if (bType === 2) { 
+                let extraTime = (SaveManager && SaveManager.data.upgrades.magnetDuration) ? SaveManager.data.upgrades.magnetDuration * 2 : 0;
+                pLogic.magnetTime = 8 + extraTime; 
+                SFX.magnet(); spawnParticles(bT.x + 10, bT.y + 10, '#9c27b0', 10); 
+            }
+            if (bType === 3) { 
+                let extraTime = (SaveManager && SaveManager.data.upgrades.rocketDuration) ? SaveManager.data.upgrades.rocketDuration * 1.5 : 0;
+                pLogic.rocketTime = 4 + extraTime; 
+                SFX.rocket(); addShake(8); spawnParticles(bT.x + 10, bT.y + 10, '#ff5722', 15); 
+            }
             if (bType === 4 && pLogic.rocketTime <= 0) { 
                 pT.x = pT.x < cw/2 ? cw - pT.w - 5 : 5; // Portal!
                 SFX.magnet(); spawnParticles(bT.x, bT.y, '#00e5ff', 30, 300); spawnFloatingText("WOUCH!", pT.x, pT.y, '#00e5ff');
@@ -518,8 +621,25 @@ function SpawnerSystem() {
         let w = PLATFORM_WIDTH * (1 - difficulty * 0.3);
         if (w < 45) w = 45;
         let h = PLATFORM_HEIGHT;
-
         let x = Math.random() * (cw - w);
+
+        let isEnemy = currentAlt > 3000 && Math.random() < (difficulty * 0.2);
+        if (isEnemy && type === 3) {
+            let flyingEnemy = new Entity();
+            flyingEnemy.addComponent(Transform(x, highestPlatY - 40, 30, 30));
+            flyingEnemy.addComponent(Velocity(0, 0));
+            flyingEnemy.addComponent(EnemyCmp('shooter', 1));
+            flyingEnemy.addComponent(PatrolCmp(x, 80, 100)); // range 80, speed 100
+            addEntity(flyingEnemy);
+            
+            // Spawn safe platform beneath it
+            let safePlat = new Entity();
+            safePlat.addComponent(Transform(x, highestPlatY, w, h));
+            safePlat.addComponent(PlatformCmp(0));
+            safePlat.addComponent(Velocity(0, 0));
+            addEntity(safePlat);
+            continue; // Skip the rest of the generic spawner loops for this altitude
+        }
 
         let plat = new Entity();
         plat.addComponent(Transform(x, highestPlatY, w, h));
@@ -545,10 +665,10 @@ function SpawnerSystem() {
         if (Math.random() < 0.2 && type !== 3) {
             let bType = 0;
             let br = Math.random();
-            if (isSpace && br > 0.9) bType = 4; // portal
-            else if (br > 0.6) bType = 1; 
-            else if (br > 0.8) bType = 2; 
-            else if (br > 0.95) bType = 3; 
+            if (isSpace && br >= 0.9) bType = 4; // portal
+            else if (br >= 0.95) bType = 3; 
+            else if (br >= 0.8) bType = 2; 
+            else if (br >= 0.6) bType = 1; 
 
             let item = new Entity();
             item.addComponent(Transform(x + w / 2 - 12, highestPlatY - 32, 24, 24));
@@ -565,6 +685,57 @@ function SpawnerSystem() {
         m.addComponent({name: 'hazard'});
         addEntity(m);
     }
+}
+
+function EnemySystem(dt) {
+    let pEnt = getEntities(['player', 'transform'])[0];
+    let pt = pEnt ? pEnt.getComponent('transform') : null;
+
+    // Moving Enemies
+    getEntities(['enemy', 'transform', 'velocity']).forEach(e => {
+        let enemy = e.getComponent('enemy');
+        let t = e.getComponent('transform');
+        
+        // Patrol Logic
+        if (e.hasComponent('patrol')) {
+            let p = e.getComponent('patrol');
+            let v = e.getComponent('velocity');
+            
+            v.vx = p.speed * p.direction;
+            if (t.x < 0 || t.x + t.w > cw) p.direction *= -1; // Bounce screen limits
+            else if (Math.abs(t.x - p.startX) > p.range) p.direction *= -1;
+        }
+
+        // Shooting Behavior
+        if (enemy.type === 'shooter' && pt) {
+            enemy.attackTimer -= dt;
+            let dx = Math.abs(t.x - pt.x);
+            let dy = pt.y - t.y; 
+
+            if (enemy.attackTimer <= 0 && dx < Math.max(150, cw) && dy > 0 && dy < ch * 0.8) {
+                enemy.attackTimer = 1.5 + Math.random(); // Cooldown
+                
+                let proj = new Entity();
+                proj.addComponent(Transform(t.x + t.w/2 - 6, t.y + t.h, 12, 12));
+                proj.addComponent(Velocity(0, 300)); 
+                proj.addComponent(ProjectileCmp(1, 'enemy'));
+                proj.addComponent({name: 'hazard'}); 
+                addEntity(proj);
+                SFX.rocket(); // Use rocket sound as shot (placeholder)
+            }
+        }
+    });
+
+    // Clean up projectiles
+    getEntities(['projectile', 'transform']).forEach(e => {
+        let proj = e.getComponent('projectile');
+        proj.life -= dt;
+        if (proj.life <= 0) removeEntity(e);
+        
+        // Also check if offscreen
+        let t = e.getComponent('transform');
+        if (t.y > cameraY + ch + 100) removeEntity(e);
+    });
 }
 
 // --- RENDER SYSTEM ---
@@ -961,6 +1132,11 @@ function renderSystem(dt) {
                 let pulse = Math.abs(Math.sin(performance.now() / 150)) * 4;
                 ctx.fillStyle = '#9c27b0';
                 ctx.fillRect(-t.w / 2 - 4 - pulse, -t.h - 4 - pulse, t.w + 8 + pulse * 2, t.h + 8 + pulse * 2);
+                ctx.shadowColor = '#9c27b0';
+                ctx.shadowBlur = 15;
+            } else if (pCmp.rocketTime > 0) {
+                ctx.shadowColor = '#ff5722';
+                ctx.shadowBlur = 20;
             }
 
             // Body
@@ -974,6 +1150,10 @@ function renderSystem(dt) {
             ctx.strokeStyle = '#000';
             ctx.lineWidth = 2;
             ctx.strokeRect(-t.w / 2, -t.h, t.w, t.h);
+            
+            // Reset shadow to prevent bleeding
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
 
             // Eyes
             ctx.fillStyle = '#000';
@@ -996,6 +1176,39 @@ function renderSystem(dt) {
         drawBlob(0);
         if (t.x > cw - t.w) drawBlob(-cw);
         else if (t.x < 0) drawBlob(cw);
+    });
+
+    // Render Enemies
+    getEntities(['enemy', 'transform']).forEach(e => {
+        let t = e.getComponent('transform');
+        ctx.fillStyle = '#673ab7'; // Deep purple enemy
+        ctx.beginPath();
+        ctx.moveTo(t.x, t.y);
+        ctx.lineTo(t.x + t.w, t.y);
+        ctx.lineTo(t.x + t.w/2, t.y + t.h);
+        ctx.fill();
+        
+        ctx.fillStyle = '#ff5722';
+        ctx.fillRect(t.x + t.w/2 - 4, t.y + t.h/2 - 4, 8, 8); // Eye
+        
+        let pCmp = e.getComponent('patrol');
+        if(pCmp) { // Thruster based on dir
+            ctx.fillStyle = '#00e5ff';
+            ctx.fillRect(t.x + (pCmp.direction > 0 ? -4 : t.w), t.y + 10, 4, 10);
+        }
+    });
+
+    // Render Projectiles
+    getEntities(['projectile', 'transform']).forEach(e => {
+        let t = e.getComponent('transform');
+        ctx.fillStyle = '#ff5722';
+        ctx.beginPath();
+        ctx.arc(t.x + t.w/2, t.y + t.h/2, t.w/2, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = '#ffeb3b';
+        ctx.beginPath();
+        ctx.arc(t.x + t.w/2, t.y + t.h/2, t.w/4, 0, Math.PI*2);
+        ctx.fill();
     });
 
     // Particles
@@ -1102,6 +1315,7 @@ function gameLoop(time) {
     InputSystem(dt);
     PhysicsSystem(dt);
     CollisionSystem(dt);
+    EnemySystem(dt);
     SpawnerSystem();
     MusicSystem(dt);
 
@@ -1169,6 +1383,9 @@ function setGameOver() {
     let maxHS = localStorage.getItem('pixelJumperHS') || 0;
     let pEnt = getEntities(['player'])[0];
     let coinsRound = pEnt ? pEnt.getComponent('player').coins : 0;
+
+    // Add coins to persistent shop
+    if (coinsRound > 0) SaveManager.addCoins(coinsRound);
 
     let totalGames = parseInt(localStorage.getItem('pjTotalGames') || '0') + 1;
     let totalCoins = parseInt(localStorage.getItem('pjTotalCoins') || '0') + coinsRound;
@@ -1277,6 +1494,13 @@ function handleOrientation(e) {
 
 document.getElementById('startBtn').addEventListener('click', attemptStart);
 document.getElementById('restartBtn').addEventListener('click', attemptStart);
+document.getElementById('menuReturnBtn').addEventListener('click', () => {
+    $gameOverScreen.classList.add('hidden');
+    $menuScreen.classList.remove('hidden');
+    currentState = GAME_STATE.MENU;
+    let maxHS = localStorage.getItem('pixelJumperHS') || 0;
+    $highScoreMenu.innerText = 'MEILLEUR SCORE : ' + maxHS + 'M';
+});
 document.getElementById('resumeBtn').addEventListener('click', resumeGame);
 $victoryFinishBtn.addEventListener('click', () => {
     $victoryScreen.classList.add('hidden');
@@ -1309,6 +1533,38 @@ $soundBtn.addEventListener('click', () => {
     localStorage.setItem('pixelJumperSound', soundEnabled);
     if (soundEnabled) initAudio();
 });
+
+if ($shopBtn) {
+    $shopBtn.addEventListener('click', () => {
+        $menuScreen.classList.add('hidden');
+        if ($shopScreen) $shopScreen.classList.remove('hidden');
+        SaveManager.updateUI();
+    });
+}
+if ($closeShopBtn) {
+    $closeShopBtn.addEventListener('click', () => {
+        if ($shopScreen) $shopScreen.classList.add('hidden');
+        $menuScreen.classList.remove('hidden');
+    });
+}
+if ($buyMagnetBtn) {
+    $buyMagnetBtn.addEventListener('click', () => {
+        if(SaveManager.buyUpgrade('magnetDuration')) SFX.coin();
+        else SFX.break();
+    });
+}
+if ($buyRocketBtn) {
+    $buyRocketBtn.addEventListener('click', () => {
+        if(SaveManager.buyUpgrade('rocketDuration')) SFX.coin();
+        else SFX.break();
+    });
+}
+if ($buyCoinValueBtn) {
+    $buyCoinValueBtn.addEventListener('click', () => {
+        if(SaveManager.buyUpgrade('coinValue')) SFX.coin();
+        else SFX.break();
+    });
+}
 
 function attemptStart() {
     initAudio(); // Required on gesture

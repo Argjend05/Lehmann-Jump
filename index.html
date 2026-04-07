@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Infinite Pixel Jumper Deluxe</title>
+    <title>Lehmann Jump</title>
     <link rel="stylesheet" href="styles/style.css">
 </head>
 
@@ -19,14 +19,15 @@
         <div class="hud-top">
             <div class="score-display">
                 <div id="scoreEl">0m</div>
+                <div class="money-display" style="margin-top: 5px;"><span class="coin-icon"></span><span id="moneyEl">0</span></div>
                 <div id="comboEl" class="combo-text hidden">COMBO x2 !</div>
             </div>
-            <div class="money-display"><span class="coin-icon"></span><span id="moneyEl">0</span></div>
         </div>
 
         <div id="menuScreen" class="screen">
             <div class="title">LEHMANN<br>JUMP</div>
             <button class="button" id="startBtn">JOUER</button>
+            <button class="button" id="shopBtn" style="background: linear-gradient(180deg, #ffca28, #ff8f00); color: #000; text-shadow: none; border-color: #ff6f00;">BOUTIQUE</button>
             <button class="button" id="settingsBtn">PARAMETRES</button>
             <div class="instructions">
                 INCLINEZ LE TELEPHONE OU TOUCHEZ LES BORDS POUR BOUGER.<br><br>EVITEZ LES PIQUES ROUGES.<br><br>RECOLTEZ LES PIECES POUR DES COMBOS !
@@ -58,6 +59,33 @@
             <button class="button" id="closeSettingsBtn">RETOUR</button>
         </div>
 
+        <div id="shopScreen" class="screen hidden">
+            <div class="title params-title" style="color: #ffca28;">BOUTIQUE</div>
+            <div class="stat-row" style="margin-bottom: 20px;">
+                VOS PIECES : <span id="shopCoins" class="highlight" style="color: #ffeb3b;">0</span>
+            </div>
+            
+            <div class="instructions instructions-settings" style="text-align: left; margin: 10px 20px;">
+                <h3 style="color: #9c27b0; margin:0 0 5px 0;">AIMANT x2</h3>
+                <p style="margin:0 0 10px 0; font-size:12px;">Attire les pièces plus longtemps (+2s par Niv).</p>
+                <button class="button" id="buyMagnetBtn" style="font-size:14px; padding: 10px;">ACHETER</button>
+            </div>
+            
+            <div class="instructions instructions-settings" style="text-align: left; margin: 10px 20px;">
+                <h3 style="color: #ff5722; margin:0 0 5px 0;">FUSEE BOOSTER</h3>
+                <p style="margin:0 0 10px 0; font-size:12px;">Prolonge la durée de vol (+1.5s par Niv).</p>
+                <button class="button" id="buyRocketBtn" style="font-size:14px; padding: 10px;">ACHETER</button>
+            </div>
+            
+            <div class="instructions instructions-settings" style="text-align: left; margin: 10px 20px;">
+                <h3 style="color: #4caf50; margin:0 0 5px 0;">FORTUNE</h3>
+                <p style="margin:0 0 10px 0; font-size:12px;">Augmente la valeur des pièces récoltées (+1 par Niv).</p>
+                <button class="button" id="buyCoinValueBtn" style="font-size:14px; padding: 10px;">ACHETER</button>
+            </div>
+
+            <button class="button" id="closeShopBtn" style="margin-top: 20px;">RETOUR</button>
+        </div>
+
         <div id="pauseScreen" class="screen hidden">
             <div class="title pause-title">PAUSE</div>
             <button class="button" id="resumeBtn">REPRENDRE</button>
@@ -81,7 +109,8 @@
             <div class="stat-row">ALTITUDE : <span id="finalScore" class="highlight">0</span>m</div>
             <div class="stat-row final-stat-row">PIECES : <span id="finalCoins" class="highlight">0</span>
             </div>
-            <button class="button" id="restartBtn">REESSAYER</button>
+            <button class="button" id="restartBtn" style="margin-bottom: 15px;">REESSAYER</button>
+            <button class="button" id="menuReturnBtn" style="background-color: #546e7a; text-shadow: none; border-bottom: 4px solid #37474f;">RETOUR AU MENU</button>
         </div>
     </div>
 
