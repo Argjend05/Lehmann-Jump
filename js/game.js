@@ -249,7 +249,7 @@ const input = { tiltX: 0, touchLeft: false, touchRight: false, keys: {} };
 let playedCinematics = {};
 
 const Haptics = {
-    lastRocket: 0,
+    isRocketing: false,
     play: (pattern) => {
         if (navigator.vibrate) {
             try { navigator.vibrate(pattern); } catch (e) {}
@@ -258,10 +258,13 @@ const Haptics = {
     platform: () => Haptics.play(15),
     boost: () => Haptics.play(40),
     perfect: () => Haptics.play([50, 30, 50]),
-    rocketTick: (now) => {
-        if (!Haptics.lastRocket || now - Haptics.lastRocket > 200) {
-            Haptics.play(150);
-            Haptics.lastRocket = now;
+    rocketUpdate: (isRocketing) => {
+        if (isRocketing && !Haptics.isRocketing) {
+            Haptics.play(2000); // Lance un seul très long appel (2s)
+            Haptics.isRocketing = true;
+        } else if (!isRocketing && Haptics.isRocketing) {
+            Haptics.play(0); // Annule explicitement la vibration
+            Haptics.isRocketing = false;
         }
     }
 };
@@ -1457,8 +1460,8 @@ function gameLoop(time) {
         if (pLogic.magnetTime > 0) pLogic.magnetTime -= dt;
         if (pLogic.rocketTime > 0) {
             pLogic.rocketTime -= dt;
-            Haptics.rocketTick(now);
         }
+        Haptics.rocketUpdate(pLogic.rocketTime > 0);
     }
 
     // Combos
