@@ -248,6 +248,24 @@ const input = { tiltX: 0, touchLeft: false, touchRight: false, keys: {} };
 
 let playedCinematics = {};
 
+const Haptics = {
+    lastRocket: 0,
+    play: (pattern) => {
+        if (navigator.vibrate) {
+            try { navigator.vibrate(pattern); } catch (e) {}
+        }
+    },
+    platform: () => Haptics.play(15),
+    boost: () => Haptics.play(40),
+    perfect: () => Haptics.play([50, 30, 50]),
+    rocketTick: (now) => {
+        if (!Haptics.lastRocket || now - Haptics.lastRocket > 200) {
+            Haptics.play(150);
+            Haptics.lastRocket = now;
+        }
+    }
+};
+
 // --- CINEMATIC SYSTEM ---
 function triggerCinematic(characterId, characterName, textArray, castIndex) {
     currentState = GAME_STATE.CINEMATIC;
@@ -612,7 +630,7 @@ function CollisionSystem(dt) {
                 SFX.coin(Math.min(10, comboCount));
                 spawnParticles(bT.x + 10, bT.y + 10, '#ffeb3b', 5, 50);
             }
-            if (bType === 1) { pV.vy = SPRING_FORCE; SFX.spring(); addShake(5); spawnParticles(pT.x + pT.w / 2, pT.y + pT.h, '#e91e63', 10); }
+            if (bType === 1) { pV.vy = SPRING_FORCE; SFX.spring(); Haptics.boost(); addShake(5); spawnParticles(pT.x + pT.w / 2, pT.y + pT.h, '#e91e63', 10); }
             if (bType === 2) { 
                 let extraTime = (SaveManager && SaveManager.data.upgrades.magnetDuration) ? SaveManager.data.upgrades.magnetDuration * 2 : 0;
                 pLogic.magnetTime = 8 + extraTime; 
@@ -684,6 +702,7 @@ function CollisionSystem(dt) {
                     if (isPerfect && platLogic.type !== 2) {
                         pV.vy = JUMP_FORCE * 1.35;
                         SFX.spring();
+                        Haptics.perfect();
                         addShake(8);
                         spawnFloatingText("PARFAIT !", pT.x, pT.y - 10, '#00e5ff');
                         score += 20;
@@ -691,6 +710,7 @@ function CollisionSystem(dt) {
                     } else {
                         pV.vy = JUMP_FORCE;
                         SFX.jump();
+                        Haptics.platform();
                         spawnParticles(pT.x + pT.w / 2, pT.y + pT.h, '#fff', 5, 80);
                     }
                     
@@ -1435,7 +1455,10 @@ function gameLoop(time) {
     if (pEnt) {
         let pLogic = pEnt.getComponent('player');
         if (pLogic.magnetTime > 0) pLogic.magnetTime -= dt;
-        if (pLogic.rocketTime > 0) pLogic.rocketTime -= dt;
+        if (pLogic.rocketTime > 0) {
+            pLogic.rocketTime -= dt;
+            Haptics.rocketTick(now);
+        }
     }
 
     // Combos
