@@ -230,6 +230,8 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 let cw = window.innerWidth, ch = window.innerHeight;
 let gameScale = 1;
+let lehmannImg = new Image();
+lehmannImg.src = 'assets/lehmann.svg';
 let cameraY = 0;
 let targetCameraY = 0;
 let highestPlatY = ch;
@@ -1294,28 +1296,50 @@ function renderSystem(dt) {
                 ctx.shadowBlur = 20;
             }
 
-            // Body
-            ctx.fillStyle = pCmp.rocketTime > 0 ? '#ff5722' : '#00e5ff';
-            ctx.fillRect(-t.w / 2, -t.h, t.w, t.h);
+            // Draw Lehmann sprite from spritesheet
+            // Layout: 8 columns x 3 rows, each cell = 24 x 48 px (approx)
+            // Row 0 = idle/walk, Row 1 = jump/up, Row 2 = fall/down
+            if (lehmannImg.complete && lehmannImg.naturalWidth > 0) {
+                let cols = 8;
+                let rows = 3;
+                let fw = lehmannImg.naturalWidth / cols;  // 24
+                let fh = lehmannImg.naturalHeight / rows; // ~58.6 -> use Math.floor
 
-            // Highlight
-            ctx.fillStyle = 'rgba(255,255,255,0.3)';
-            ctx.fillRect(-t.w / 2 + 2, -t.h + 2, t.w - 4, 6);
+                // Pick animation row based on vertical velocity
+                let animRow;
+                if (pCmp.rocketTime > 0) {
+                    animRow = 1; // Jump/ascend during rocket
+                } else if (v.vy < -100) {
+                    animRow = 1; // Jumping up
+                } else if (v.vy > 100) {
+                    animRow = 2; // Falling down
+                } else {
+                    animRow = 0; // Idle
+                }
 
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(-t.w / 2, -t.h, t.w, t.h);
+                // Cycle through frames on the current row
+                let speed = animRow === 0 ? 180 : 120; // Faster anim when moving
+                let frameIdx = Math.floor(performance.now() / speed) % cols;
+                let sx = frameIdx * fw;
+                let sy = animRow * fh;
+
+                let flipX = v.vx < -50 ? -1 : 1;
+                let drawW = t.w + 16;
+                let drawH = (fh / fw) * drawW;
+
+                ctx.save();
+                ctx.scale(flipX, 1);
+                ctx.drawImage(lehmannImg, sx, sy, fw, fh, -drawW / 2, -drawH + 4, drawW, drawH);
+                ctx.restore();
+            } else {
+                // Fallback cube
+                ctx.fillStyle = pCmp.rocketTime > 0 ? '#ff5722' : '#00e5ff';
+                ctx.fillRect(-t.w / 2, -t.h, t.w, t.h);
+            }
             
             // Reset shadow to prevent bleeding
             ctx.shadowColor = 'transparent';
             ctx.shadowBlur = 0;
-
-            // Eyes
-            ctx.fillStyle = '#000';
-            let dir = Math.sign(v.vx) * 4;
-            if (Math.abs(v.vx) < 50) dir = 0;
-            ctx.fillRect(-t.w / 2 + 6 + dir, -t.h + 8, 4, 6);
-            ctx.fillRect(t.w / 2 - 10 + dir, -t.h + 8, 4, 6);
 
             // Exhaust
             if (pCmp.rocketTime > 0) {
