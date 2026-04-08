@@ -192,6 +192,39 @@ function EnemyCmp(type, hp) { return { name: 'enemy', type, hp, attackTimer: 0 }
 function PatrolCmp(startX, range, speed) { return { name: 'patrol', startX, range, speed, direction: 1 }; }
 function ProjectileCmp(damage, owner) { return { name: 'projectile', damage, owner, life: 3.0 }; }
 
+// --- BIOME SYSTEM ---
+let currentBiomeIndex = -1;
+
+function checkBiome(currentScore) {
+    let newIndex = -1;
+    if (currentScore >= 0 && currentScore < 3000) newIndex = 0;
+    else if (currentScore >= 3000 && currentScore < 10000) newIndex = 1;
+    else if (currentScore >= 10000) newIndex = 2;
+
+    if (newIndex !== currentBiomeIndex && newIndex !== -1) {
+        currentBiomeIndex = newIndex;
+        let biomeNames = [
+            "L'Ère du Textile (André Koechlin)",
+            "Puissance Industrielle (Alfred Engel)",
+            "Génie Scientifique (J.H. Lambert)"
+        ];
+        showBiomeToast(biomeNames[newIndex]);
+    }
+}
+
+function showBiomeToast(name) {
+    const uiLayer = document.getElementById('ui-layer');
+    if (!uiLayer) return;
+    const toast = document.createElement('div');
+    toast.className = 'biome-toast';
+    toast.innerText = name;
+    uiLayer.appendChild(toast);
+    
+    setTimeout(() => {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 4000); // 3s animation + 1s buffer
+}
+
 // --- GLOBALS ---
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -209,9 +242,106 @@ let screenShake = 0;
 let comboCount = 0;
 let comboTimer = 0;
 
-const GAME_STATE = { MENU: 0, PLAYING: 1, GAMEOVER: 2, PAUSE: 3, VICTORY: 4 };
+const GAME_STATE = { MENU: 0, PLAYING: 1, GAMEOVER: 2, PAUSE: 3, VICTORY: 4, CINEMATIC: 5 };
 let currentState = GAME_STATE.MENU;
 const input = { tiltX: 0, touchLeft: false, touchRight: false, keys: {} };
+
+let playedCinematics = {};
+
+// --- CINEMATIC SYSTEM ---
+function triggerCinematic(characterId, characterName, textArray, castIndex) {
+    currentState = GAME_STATE.CINEMATIC;
+    
+    // Stop rockets and dashes so player literally hangs in the air gently
+    getEntities(['player', 'velocity']).forEach(e => {
+        let v = e.getComponent('velocity');
+        v.vy = 0;
+        v.vx = 0;
+    });
+
+    let launchCinematic = (spriteUrl, animsData, isFallback) => {
+        let steps = [
+            {
+                background: 'rgba(0, 0, 0, 0.7)',
+                actions: [
+                    { type: 'spawn', id: characterId, x: -0.2, y: 0.65, sprite: spriteUrl, anims: animsData, anim: 'idle', scale: isFallback ? 0.12 : (150 / animsData.idle.frameH) },
+                    { type: 'move', id: characterId, x: 0.2, y: 0.65, duration: 800 }
+                ]
+            }
+        ];
+
+        textArray.forEach((txt, idx) => {
+            let actions = [];
+            if (!isFallback && idx === castIndex) {
+                actions.push({ type: 'anim', id: characterId, anim: 'cast' });
+            }
+            steps.push({
+                background: 'rgba(0, 0, 0, 0.7)',
+                speaker: characterId,
+                title: characterName,
+                text: txt,
+                actions: actions
+            });
+        });
+
+        let logicCanvas = {
+            width: cw,
+            height: ch,
+            getContext: () => ctx,
+            addEventListener: (...args) => canvas.addEventListener(...args),
+            removeEventListener: (...args) => canvas.removeEventListener(...args)
+        };
+
+        Cinematic.play(logicCanvas, steps, () => {
+            currentState = GAME_STATE.PLAYING;
+            // Boost Rocket sécurisé pour ne pas mourir bêtement à la fin
+            getEntities(['player']).forEach(e => {
+                let p = e.getComponent('player');
+                p.rocketTime = 1.5;
+            });
+            SFX.rocket();
+        });
+    };
+
+    let img = new Image();
+    img.onload = () => {
+        let fw = Math.floor(img.naturalWidth / 4);
+        let fh = Math.floor(img.naturalHeight / 3);
+
+        // On crée une spritesheet modifiée en mémoire pour que cinematic.js 
+        // boucle uniquement sur les deux dernières frames de magie (index 2 et 3).
+        let offCanvas = document.createElement('canvas');
+        offCanvas.width = img.naturalWidth;
+        offCanvas.height = img.naturalHeight;
+        let oCtx = offCanvas.getContext('2d');
+        
+        // Row 0 : Idle (intact)
+        oCtx.drawImage(img, 0, 0, fw * 4, fh, 0, 0, fw * 4, fh);
+        
+        // Row 1 : Cast (On recopie les frames 2 et 3 sur les colonnes 0/2 et 1/3)
+        // Frame 0 et 2
+        oCtx.drawImage(img, fw * 2, fh, fw, fh, 0, fh, fw, fh);
+        oCtx.drawImage(img, fw * 2, fh, fw, fh, fw * 2, fh, fw, fh);
+        // Frame 1 et 3
+        oCtx.drawImage(img, fw * 3, fh, fw, fh, fw, fh, fw, fh);
+        oCtx.drawImage(img, fw * 3, fh, fw, fh, fw * 3, fh, fw, fh);
+
+        let customSpriteUrl = offCanvas.toDataURL('image/png');
+
+        launchCinematic(customSpriteUrl, {
+            idle: { srcY: 0, frameW: fw, frameH: fh, frames: 4, fps: 6 },
+            cast: { srcY: fh, frameW: fw, frameH: fh, frames: 4, fps: 5 }
+        }, false);
+    };
+    img.onerror = () => {
+        console.warn(`Image manquante pour ${characterId}, fallback statique.`);
+        launchCinematic(`assets/${characterId}.png`, { idle: { frameW: 1024, frameH: 1024, srcY: 0, frames: 1, fps: 0 } }, true);
+    };
+    
+    if (characterId === 'koechlin') img.src = 'assets/koechlin_spritesheet.png';
+    else if (characterId === 'engel') img.src = 'assets/engel-removebg-preview.png';
+    else if (characterId === 'lambert') img.src = 'assets/lambert-removebg-preview.png';
+}
 
 // --- DOM ELEMENTS ---
 const $scoreEl = document.getElementById('scoreEl');
@@ -743,19 +873,21 @@ function renderSystem(dt) {
     ctx.clearRect(0, 0, cw, ch);
 
     // Dynamic Sky Gradient based on altitude
-    let currentAlt = Math.max(0, -cameraY);
+    let currentAltMeters = Math.max(0, Math.floor(-cameraY / 10));
     let r1, g1, b1, r2, g2, b2;
-    if (currentAlt < 5000) {
-        let p = currentAlt / 5000;
+    if (currentAltMeters < 3000) {
+        let p = currentAltMeters / 3000;
         r1 = lerpColor(79, 255, p); g1 = lerpColor(195, 112, p); b1 = lerpColor(247, 67, p); // Cyan to Orange Red
         r2 = lerpColor(225, 255, p); g2 = lerpColor(245, 193, p); b2 = lerpColor(254, 7, p);
-    } else if (currentAlt < 10000) {
-        let p = (currentAlt - 5000) / 5000;
+    } else if (currentAltMeters < 10000) {
+        let p = (currentAltMeters - 3000) / 7000;
         r1 = lerpColor(255, 10, p); g1 = lerpColor(112, 10, p); b1 = lerpColor(67, 30, p); // Sunset to Deep Space
         r2 = lerpColor(255, 10, p); g2 = lerpColor(193, 10, p); b2 = lerpColor(7, 40, p);
     } else {
         r1 = 10; g1 = 10; b1 = 30; r2 = 10; g2 = 10; b2 = 40; // Deep Space
     }
+
+    let currentAlt = Math.max(0, -cameraY); // For parallax items
 
     let grad = ctx.createLinearGradient(0, 0, 0, ch);
     grad.addColorStop(0, `rgb(${r1},${g1},${b1})`);
@@ -1279,7 +1411,7 @@ function MusicSystem(dt) {
 
 // --- GAME LOOP ---
 function gameLoop(time) {
-    if (currentState !== GAME_STATE.PLAYING) return;
+    if (currentState !== GAME_STATE.PLAYING && currentState !== GAME_STATE.CINEMATIC) return;
     animationFrameId = requestAnimationFrame(gameLoop);
 
     let currentTime = time || performance.now();
@@ -1287,6 +1419,12 @@ function gameLoop(time) {
     lastTime = currentTime;
 
     if (isNaN(dt) || dt < 0.001 || dt > 0.1) dt = 0.016; // strict anti-NaN fallback
+
+    if (currentState === GAME_STATE.CINEMATIC) {
+        updateParticles(dt);
+        renderSystem(dt);
+        return;
+    }
 
     // Smooth Camera Lerp
     if (!isNaN(targetCameraY) && !isNaN(cameraY)) {
@@ -1334,6 +1472,46 @@ function gameLoop(time) {
     let currentAlt = Math.max(0, Math.floor(-cameraY / 10));
     if (currentAlt > score) score = currentAlt;
     
+    checkBiome(score);
+
+    if (score >= 300 && !playedCinematics.koechlin) {
+        playedCinematics.koechlin = true;
+        triggerCinematic("koechlin", "ANDRÉ KOECHLIN", [
+            "M. Lehmann... Encore vous ?! Vous ne pouvez pas prendre l'ascenseur comme tout le monde ?",
+            "Je suis André Koechlin. Maire de Mulhouse, maître de la vapeur... Et me voilà réduit à flotter en Pixel-Art à 300 mètres d'altitude !",
+            "À mon époque, on ne sautait pas bêtement sur des plateformes. On construisait des locomotives en mâchant du charbon au petit-déjeuner !",
+            "Mais bon, il paraît que votre start-up consiste à bondir vers l'infini avec une physique un peu suspecte...",
+            "Tenez, prenez cette petite propulsion que j'ai bricolée avec une vieille chaudière. Essayez de ne pas exploser en vol !",
+            "Allez ouste, disparaissez ! Et tâchez de ne pas vous écraser bêtement sur la prochaine brique rouge !"
+        ], 4);
+        return;
+    }
+    
+    if (score >= 3000 && !playedCinematics.engel) {
+        playedCinematics.engel = true;
+        triggerCinematic("engel", "ALFRED ENGEL", [
+            "Ah... Le fameux Lehmann ! Vous avez réussi à grimper jusqu'au cœur de la puissance industrielle.",
+            "Je suis Alfred Engel. Ma politique du travail était stricte, tout comme les collisions de ce jeu !",
+            "Ici, à Mulhouse, nous ne reculons jamais devant l'innovation textile.",
+            "Puisque vous manquez cruellement de style dans votre façon de bondir...",
+            "Laissez-moi vous donner un bon coup de pression vapeur. Que les bobines tournent à plein régime !",
+            "En route vers l'avenir, et n'oubliez pas de poinçonner en arrivant !"
+        ], 4);
+        return;
+    }
+    
+    if (score >= 10000 && !playedCinematics.lambert) {
+        playedCinematics.lambert = true;
+        triggerCinematic("lambert", "J.H. LAMBERT", [
+            "Étonnant... Un humain ayant atteint les hautes sphères de l'intellect atmosphérique.",
+            "Je suis Jean-Henri Lambert. J'ai prouvé que Pi était irrationnel, mais votre obstination l'est encore plus !",
+            "Vous évoluez désormais dans le vide cosmique, où la gravité n'est qu'une vulgaire équation que je manipule aisément.",
+            "Puisque la science vous observe... Prenez ce champ de distorsion astrale pour vous propulser vers l'infini !",
+            "Que les cieux Mulhousiens s'ouvrent à vous. Sautez !"
+        ], 3);
+        return;
+    }
+
     // Check Victory
     if (score >= 1500 && !infiniteMode) {
         setVictory();
@@ -1353,6 +1531,8 @@ function initGame() {
     targetCameraY = 0;
     score = 0;
     infiniteMode = false;
+    currentBiomeIndex = -1;
+    playedCinematics = {};
     comboCount = 0;
     highestPlatY = ch;
     $scoreEl.innerText = '0m';
@@ -1422,6 +1602,33 @@ function togglePause() {
     }
 }
 
+function teleportTo(alt) {
+    let pEnt = getEntities(['player'])[0];
+    if (pEnt) {
+        let ty = -(alt - 50) * 10;
+        pEnt.getComponent('transform').y = ty;
+        pEnt.getComponent('velocity').vy = -1200;
+        cameraY = ty + ch / 2;
+        targetCameraY = ty + ch / 2;
+        score = alt - 50; 
+        highestPlatY = cameraY + ch;
+        
+        entities.forEach(e => {
+            if (e.hasComponent('platform') || e.hasComponent('enemy')) e.toBeRemoved = true;
+        });
+        cleanUpEntities();
+        
+        // Désactive les cinématiques antérieures pour éviter les déclenchements en chaîne
+        if (alt > 300) playedCinematics.koechlin = true;
+        if (alt > 3000) playedCinematics.engel = true;
+        if (alt > 10000) playedCinematics.lambert = true;
+        
+        let pLogic = pEnt.getComponent('player');
+        pLogic.rocketTime = 2.0; 
+    }
+    resumeGame();
+}
+
 function resumeGame() {
     $pauseScreen.classList.add('hidden');
     $countdownScreen.classList.remove('hidden');
@@ -1448,6 +1655,7 @@ function resumeGame() {
 window.addEventListener('keydown', e => {
     input.keys[e.code] = true;
     if (e.code === 'Escape' || e.code === 'KeyP') togglePause();
+    
     if ((e.code === 'Space' || e.code === 'Enter') && (currentState === GAME_STATE.MENU || currentState === GAME_STATE.GAMEOVER)) {
         attemptStart();
     }
@@ -1502,6 +1710,10 @@ document.getElementById('menuReturnBtn').addEventListener('click', () => {
     $highScoreMenu.innerText = 'MEILLEUR SCORE : ' + maxHS + 'M';
 });
 document.getElementById('resumeBtn').addEventListener('click', resumeGame);
+document.getElementById('devBtn300').addEventListener('click', () => teleportTo(300));
+document.getElementById('devBtn3000').addEventListener('click', () => teleportTo(3000));
+document.getElementById('devBtn10000').addEventListener('click', () => teleportTo(10000));
+
 $victoryFinishBtn.addEventListener('click', () => {
     $victoryScreen.classList.add('hidden');
     setGameOver(); 
