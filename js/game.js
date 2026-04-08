@@ -272,7 +272,7 @@ const Haptics = {
 };
 
 // --- CINEMATIC SYSTEM ---
-function triggerCinematic(characterId, characterName, textArray, castIndex) {
+function triggerCinematic(characterId, characterName, textArray, castIndex, onEndCallback, isVictory = false) {
     currentState = GAME_STATE.CINEMATIC;
     
     // Stop rockets and dashes so player literally hangs in the air gently
@@ -283,29 +283,84 @@ function triggerCinematic(characterId, characterName, textArray, castIndex) {
     });
 
     let launchCinematic = (spriteUrl, animsData, isFallback) => {
-        let steps = [
-            {
-                background: 'rgba(0, 0, 0, 0.7)',
-                actions: [
-                    { type: 'spawn', id: characterId, x: -0.2, y: 0.65, sprite: spriteUrl, anims: animsData, anim: 'idle', scale: isFallback ? 0.12 : (150 / animsData.idle.frameH) },
-                    { type: 'move', id: characterId, x: 0.2, y: 0.65, duration: 800 }
-                ]
-            }
-        ];
+        let steps = [];
 
-        textArray.forEach((txt, idx) => {
-            let actions = [];
-            if (!isFallback && idx === castIndex) {
-                actions.push({ type: 'anim', id: characterId, anim: 'cast' });
+        if (isVictory) {
+            steps.push({
+                background: '#000000',
+                actions: [{ type: 'wait', id: 'fake', duration: 1500 }]
+            });
+            
+            let cloudActions = [];
+            // Spawn some background clouds
+            for (let i = 0; i < 15; i++) {
+                cloudActions.push({ type: 'spawn', id: 'cloud'+i, x: Math.random()*1.2 - 0.1, y: Math.random()*1.2 - 0.1, w: Math.random()*100 + 80, h: Math.random()*40 + 20, color: '#ffffff', isCloud: true });
             }
+            cloudActions.push({ type: 'spawn', id: 'lehmann', x: 0.5, y: 0.5, sprite: 'assets/lehmann.svg', anims: { idle: { srcY: 0, frameW: 24, frameH: 48, frames: 8, fps: 6 } }, anim: 'idle', scale: 4, flip: false });
+            // Add a little floating up move
+            cloudActions.push({ type: 'move', id: 'lehmann', x: 0.5, y: 0.45, duration: 2000 });
+
+            steps.push({
+                background: '#81d4fa',
+                actions: cloudActions
+            });
+
+            textArray.forEach((txt) => {
+                let cleanText = txt;
+                if (txt.includes(' : ')) {
+                    cleanText = txt.split(' : ').slice(1).join(' : ').trim();
+                }
+                steps.push({
+                    background: '#81d4fa',
+                    speaker: 'lehmann',
+                    text: cleanText,
+                    actions: []
+                });
+            });
+
+        } else {
+            let introActions = [];
+            if (characterId !== 'lehmann') {
+                introActions.push({ type: 'spawn', id: characterId, x: -0.2, y: 0.65, sprite: spriteUrl, anims: animsData, anim: 'idle', scale: isFallback ? 0.12 : (150 / animsData.idle.frameH) });
+                introActions.push({ type: 'move', id: characterId, x: 0.25, y: 0.65, duration: 800 });
+            }
+            
+            // Lehmann always appears
+            introActions.push({ type: 'spawn', id: 'lehmann', x: 1.2, y: 0.65, sprite: 'assets/lehmann.svg', anims: { idle: { srcY: 0, frameW: 24, frameH: 48, frames: 8, fps: 6 } }, anim: 'idle', scale: 2.8, flip: true });
+            introActions.push({ type: 'move', id: 'lehmann', x: 0.75, y: 0.65, duration: 800 });
+
             steps.push({
                 background: 'rgba(0, 0, 0, 0.7)',
-                speaker: characterId,
-                title: characterName,
-                text: txt,
-                actions: actions
+                actions: introActions
             });
-        });
+
+            textArray.forEach((txt, idx) => {
+                let actions = [];
+                let speakerId = characterId;
+                let cleanText = txt;
+
+                if (txt.includes(' : ')) {
+                    let parts = txt.split(' : ');
+                    if (parts[0].trim().toUpperCase() === 'LEHMANN') {
+                        speakerId = 'lehmann';
+                    } else {
+                        speakerId = characterId;
+                    }
+                    cleanText = parts.slice(1).join(' : ').trim();
+                }
+
+                if (!isFallback && idx === castIndex && speakerId === characterId && characterId !== 'lehmann') {
+                    actions.push({ type: 'anim', id: characterId, anim: 'cast' });
+                }
+
+                steps.push({
+                    background: 'rgba(0, 0, 0, 0.7)',
+                    speaker: speakerId,
+                    text: cleanText,
+                    actions: actions
+                });
+            });
+        }
 
         let logicCanvas = {
             width: cw,
@@ -316,13 +371,17 @@ function triggerCinematic(characterId, characterName, textArray, castIndex) {
         };
 
         Cinematic.play(logicCanvas, steps, () => {
-            currentState = GAME_STATE.PLAYING;
-            // Boost Rocket sécurisé pour ne pas mourir bêtement à la fin
-            getEntities(['player']).forEach(e => {
-                let p = e.getComponent('player');
-                p.rocketTime = 1.5;
-            });
-            SFX.rocket();
+            if (onEndCallback) {
+                onEndCallback();
+            } else {
+                currentState = GAME_STATE.PLAYING;
+                // Boost Rocket sécurisé pour ne pas mourir bêtement à la fin
+                getEntities(['player']).forEach(e => {
+                    let p = e.getComponent('player');
+                    p.rocketTime = 1.5;
+                });
+                SFX.rocket();
+            }
         });
     };
 
@@ -361,9 +420,15 @@ function triggerCinematic(characterId, characterName, textArray, castIndex) {
         launchCinematic(`assets/${characterId}.png`, { idle: { frameW: 1024, frameH: 1024, srcY: 0, frames: 1, fps: 0 } }, true);
     };
     
-    if (characterId === 'koechlin') img.src = 'assets/koechlin_spritesheet.png';
-    else if (characterId === 'engel') img.src = 'assets/engel-removebg-preview.png';
-    else if (characterId === 'lambert') img.src = 'assets/lambert-removebg-preview.png';
+    if (characterId === 'lehmann') {
+        launchCinematic(null, null, true);
+    } else if (characterId === 'koechlin') {
+        img.src = 'assets/koechlin_spritesheet.png';
+    } else if (characterId === 'engel') {
+        img.src = 'assets/engel-removebg-preview.png';
+    } else if (characterId === 'lambert') {
+        img.src = 'assets/lambert-removebg-preview.png';
+    }
 }
 
 // --- DOM ELEMENTS ---
@@ -914,11 +979,16 @@ function renderSystem(dt) {
 
     let currentAlt = Math.max(0, -cameraY); // For parallax items
 
-    let grad = ctx.createLinearGradient(0, 0, 0, ch);
-    grad.addColorStop(0, `rgb(${r1},${g1},${b1})`);
-    grad.addColorStop(1, `rgb(${r2},${g2},${b2})`);
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, cw, ch);
+    let bandCount = 10;
+    let bandHeight = Math.ceil(ch / bandCount);
+    for (let i = 0; i < bandCount; i++) {
+        let t = i / (bandCount - 1);
+        let r = lerpColor(r1, r2, t);
+        let g = lerpColor(g1, g2, t);
+        let b = lerpColor(b1, b2, t);
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.fillRect(0, i * bandHeight, cw, bandHeight);
+    }
 
     // Fade in stars for Space!
     if (r1 < 100) {
@@ -988,13 +1058,17 @@ function renderSystem(dt) {
         ctx.globalAlpha = Math.max(0, Math.min(1, moonAlpha));
         let moonY = ch/2 + (cameraY + 12000) * 0.05;
         ctx.fillStyle = '#fce4ec';
-        ctx.beginPath();
-        ctx.arc(cw * 0.8, moonY, isMobile? 50 : 80, 0, Math.PI*2);
-        ctx.fill();
+        let mw = isMobile ? 100 : 160;
+        let mh = mw;
+        let mx = cw * 0.8 - mw/2;
+        let my = moonY - mh/2;
+        ctx.fillRect(mx + mw*0.2, my, mw*0.6, mh);
+        ctx.fillRect(mx, my + mh*0.2, mw, mh*0.6);
+        ctx.fillRect(mx + mw*0.1, my + mh*0.1, mw*0.8, mh*0.8);
         ctx.fillStyle = '#f8bbd0'; // craters
         let cr = isMobile ? 0.6 : 1;
-        ctx.beginPath(); ctx.arc(cw * 0.8 - 20*cr, moonY - 20*cr, 15*cr, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(cw * 0.8 + 30*cr, moonY + 10*cr, 25*cr, 0, Math.PI*2); ctx.fill();
+        ctx.fillRect(mx + mw*0.2, my + mh*0.3, 30*cr, 30*cr);
+        ctx.fillRect(mx + mw*0.6, my + mh*0.6, 50*cr, 50*cr);
         ctx.globalAlpha = 1;
     }
 
@@ -1125,15 +1199,21 @@ function renderSystem(dt) {
                 ctx.globalAlpha = pType.active ? 0.8 : 0.2;
             }
 
-            // Beam body
+            // Pixelated Beam body
             ctx.fillStyle = base;
             ctx.fillRect(t.x, t.y, t.w, t.h);
 
             ctx.fillStyle = high;
-            ctx.fillRect(t.x, t.y, t.w, t.h / 4);
+            ctx.fillRect(t.x, t.y, t.w, Math.floor(t.h / 3));
 
             ctx.fillStyle = shad;
-            ctx.fillRect(t.x, t.y + t.h - t.h / 4, t.w, t.h / 4);
+            ctx.fillRect(t.x, t.y + t.h - Math.floor(t.h / 3), t.w, Math.floor(t.h / 3));
+            
+            // Checkerboard detail
+            ctx.fillStyle = shad;
+            for(let px = 0; px < t.w - 8; px += 8) {
+                if((px/8)%2 === 0) ctx.fillRect(t.x + px, t.y + Math.floor(t.h / 3), 8, Math.floor(t.h / 3));
+            }
 
             // Stripes for Moving Platforms
             if (pType.type === 1) {
@@ -1244,21 +1324,14 @@ function renderSystem(dt) {
         // Warning indicator if meteor is above the screen
         if (t.y + t.h < cameraY) {
             ctx.fillStyle = `rgba(255, 0, 0, ${0.3 + 0.7 * Math.abs(Math.sin(performance.now() / 150))})`;
-            ctx.beginPath();
-            ctx.moveTo(t.x + t.w/2 - 15, cameraY + 10);
-            ctx.lineTo(t.x + t.w/2 + 15, cameraY + 10);
-            ctx.lineTo(t.x + t.w/2, cameraY + 30);
-            ctx.fill();
+            ctx.fillRect(t.x + t.w/2 - 10, cameraY + 10, 20, 20); // Blocky warning
         }
 
         ctx.fillStyle = '#f44336';
-        ctx.beginPath();
-        ctx.arc(t.x + t.w/2, t.y + t.h/2, t.w/2, 0, Math.PI*2);
-        ctx.fill();
+        ctx.fillRect(t.x + 2, t.y, t.w - 4, t.h);
+        ctx.fillRect(t.x, t.y + 2, t.w, t.h - 4);
         ctx.fillStyle = '#ffeb3b';
-        ctx.beginPath();
-        ctx.arc(t.x + t.w/2, t.y + t.h/2 + 5, t.w/3, 0, Math.PI*2);
-        ctx.fill();
+        ctx.fillRect(t.x + t.w/4, t.y + t.h/2, t.w/2, t.h/2);
         // trail
         ctx.fillStyle = 'rgba(244, 67, 54, 0.5)';
         ctx.fillRect(t.x + 4, t.y - 60, t.w - 8, 60);
@@ -1302,8 +1375,8 @@ function renderSystem(dt) {
             if (lehmannImg.complete && lehmannImg.naturalWidth > 0) {
                 let cols = 8;
                 let rows = 3;
-                let fw = lehmannImg.naturalWidth / cols;  // 24
-                let fh = lehmannImg.naturalHeight / rows; // ~58.6 -> use Math.floor
+                let fw = Math.floor(lehmannImg.naturalWidth / cols);  // 24
+                let fh = 48; // Correct cell height for the 24x48 grid (ignore SVG total height 176)
 
                 // Pick animation row based on vertical velocity
                 let animRow;
@@ -1319,7 +1392,8 @@ function renderSystem(dt) {
 
                 // Cycle through frames on the current row
                 let speed = animRow === 0 ? 180 : 120; // Faster anim when moving
-                let frameIdx = Math.floor(performance.now() / speed) % cols;
+                let rowCols = [8, 7, 4][animRow]; // Correct number of frames per row in SVG
+                let frameIdx = Math.floor(performance.now() / speed) % rowCols;
                 let sx = frameIdx * fw;
                 let sy = animRow * fh;
 
@@ -1361,11 +1435,10 @@ function renderSystem(dt) {
     getEntities(['enemy', 'transform']).forEach(e => {
         let t = e.getComponent('transform');
         ctx.fillStyle = '#673ab7'; // Deep purple enemy
-        ctx.beginPath();
-        ctx.moveTo(t.x, t.y);
-        ctx.lineTo(t.x + t.w, t.y);
-        ctx.lineTo(t.x + t.w/2, t.y + t.h);
-        ctx.fill();
+        // Pixelated triangle approximation
+        ctx.fillRect(t.x, t.y, t.w, Math.floor(t.h/3));
+        ctx.fillRect(t.x + t.w*0.2, t.y + Math.floor(t.h/3), t.w*0.6, Math.floor(t.h/3));
+        ctx.fillRect(t.x + t.w*0.4, t.y + Math.floor(t.h*0.66), t.w*0.2, Math.floor(t.h/3));
         
         ctx.fillStyle = '#ff5722';
         ctx.fillRect(t.x + t.w/2 - 4, t.y + t.h/2 - 4, 8, 8); // Eye
@@ -1381,13 +1454,10 @@ function renderSystem(dt) {
     getEntities(['projectile', 'transform']).forEach(e => {
         let t = e.getComponent('transform');
         ctx.fillStyle = '#ff5722';
-        ctx.beginPath();
-        ctx.arc(t.x + t.w/2, t.y + t.h/2, t.w/2, 0, Math.PI*2);
-        ctx.fill();
+        ctx.fillRect(t.x + 2, t.y, t.w - 4, t.h);
+        ctx.fillRect(t.x, t.y + 2, t.w, t.h - 4);
         ctx.fillStyle = '#ffeb3b';
-        ctx.beginPath();
-        ctx.arc(t.x + t.w/2, t.y + t.h/2, t.w/4, 0, Math.PI*2);
-        ctx.fill();
+        ctx.fillRect(t.x + t.w/2 - t.w/8, t.y + t.h/2 - t.h/8, t.w/4, t.h/4);
     });
 
     // Particles
@@ -1526,46 +1596,50 @@ function gameLoop(time) {
 
     if (score >= 300 && !playedCinematics.koechlin) {
         playedCinematics.koechlin = true;
-        triggerCinematic("koechlin", "ANDRÉ KOECHLIN", [
-            "M. Lehmann... Encore vous ?! Vous ne pouvez pas prendre l'ascenseur comme tout le monde ?",
-            "Je suis André Koechlin. Maire de Mulhouse, maître de la vapeur... Et me voilà réduit à flotter en Pixel-Art à 300 mètres d'altitude !",
-            "À mon époque, on ne sautait pas bêtement sur des plateformes. On construisait des locomotives en mâchant du charbon au petit-déjeuner !",
-            "Mais bon, il paraît que votre start-up consiste à bondir vers l'infini avec une physique un peu suspecte...",
-            "Tenez, prenez cette petite propulsion que j'ai bricolée avec une vieille chaudière. Essayez de ne pas exploser en vol !",
-            "Allez ouste, disparaissez ! Et tâchez de ne pas vous écraser bêtement sur la prochaine brique rouge !"
-        ], 4);
+        triggerCinematic("koechlin", "ANDRE KOECHLIN", [
+            "KOECHLIN : Dites-moi Lehmann, ce coton me rappelle etrangement la production de mon confrere Dollfus. Vous l'avez... emprunte ?",
+            "LEHMANN : On va dire que j'ai trouve ces tissus en \"libre acces\" dans la riviere. C'est de l'upcycling sauvage, Andre. Faut vivre avec son temps.",
+            "KOECHLIN : Jean-Henri Dollfus est juste derriere vous et il n'a pas l'air d'apprecier votre concept de mode. Si j'etais vous, je ne trainerais pas a admirer la vue.",
+            "LEHMANN : Il est un peu rigide sur les bords, le Jean-Henri. Je vais monter d'un etage, l'air sera plus pur et moins charge en reproches."
+        ], 2);
         return;
     }
     
     if (score >= 3000 && !playedCinematics.engel) {
         playedCinematics.engel = true;
         triggerCinematic("engel", "ALFRED ENGEL", [
-            "Ah... Le fameux Lehmann ! Vous avez réussi à grimper jusqu'au cœur de la puissance industrielle.",
-            "Je suis Alfred Engel. Ma politique du travail était stricte, tout comme les collisions de ce jeu !",
-            "Ici, à Mulhouse, nous ne reculons jamais devant l'innovation textile.",
-            "Puisque vous manquez cruellement de style dans votre façon de bondir...",
-            "Laissez-moi vous donner un bon coup de pression vapeur. Que les bobines tournent à plein régime !",
-            "En route vers l'avenir, et n'oubliez pas de poinçonner en arrivant !"
-        ], 4);
+            "ENGEL : Monter si haut pour echapper a ses responsabilites... Ce n'est pas tres heroique, Monsieur Lehmann. On ne batit rien sur le vol.",
+            "LEHMANN : Ecoutez Alfred, j'ai survecu a un pigeon radioactif et a une baignade forcee. Ce n'est pas un vol, c'est un partage de ressources non consenti. Nuance.",
+            "ENGEL : Dollfus arrive. Il a mobilise la moitie des ouvriers de Mulhouse pour vous rattraper. Vous comptez aller jusqu'ou comme ca ?",
+            "LEHMANN : Jusqu'a ce que mon altitude depasse son niveau de colere. Allez, je file, j'ai l'impression que mes semelles commencent a fondre."
+        ], 2);
         return;
     }
     
     if (score >= 10000 && !playedCinematics.lambert) {
         playedCinematics.lambert = true;
         triggerCinematic("lambert", "J.H. LAMBERT", [
-            "Étonnant... Un humain ayant atteint les hautes sphères de l'intellect atmosphérique.",
-            "Je suis Jean-Henri Lambert. J'ai prouvé que Pi était irrationnel, mais votre obstination l'est encore plus !",
-            "Vous évoluez désormais dans le vide cosmique, où la gravité n'est qu'une vulgaire équation que je manipule aisément.",
-            "Puisque la science vous observe... Prenez ce champ de distorsion astrale pour vous propulser vers l'infini !",
-            "Que les cieux Mulhousiens s'ouvrent à vous. Sautez !"
-        ], 3);
+            "LAMBERT : Mes calculs sont formels : votre trajectoire est totalement absurde. Pourquoi fuir vers le haut alors que tout finit par redescendre ?",
+            "LEHMANN : Jean-Henri ! Toi qui aimes les chiffres, calcule-moi la probabilite que je m'en sorte si Dollfus me rattrape avec ses ciseaux a textile.",
+            "LAMBERT : Proche de zero. Mais vous avez de la chance, la courbure de l'espace-temps mulhousien joue en votre faveur aujourd'hui. Un dernier saut et vous changez de plan.",
+            "LEHMANN : Parfait. Dis a Jean-Henri que s'il veut ses matieres premieres, il n'a qu'a m'envoyer un mail. Je suis en mode \"ne pas deranger\" la."
+        ], 2);
         return;
     }
 
     // Check Victory
     if (score >= 1500 && !infiniteMode) {
-        setVictory();
-        return;
+        if (!playedCinematics.victory) {
+            playedCinematics.victory = true;
+            triggerCinematic("lehmann", "LEHMANN", [
+                "LEHMANN : Enfin ! Plus de Dollfus, plus de cris, et surtout plus de pigeons. C'est calme ici.",
+                "LEHMANN : Bon, par contre, j'ai toujours un slip en soie volee et aucune idee de comment redescendre...",
+                "LEHMANN : On verra ca au prochain semestre. Mission accomplie !"
+            ], -1, () => {
+                setVictory();
+            }, true);
+            return;
+        }
     }
 
     $scoreEl.innerText = score + 'm';

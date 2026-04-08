@@ -141,6 +141,7 @@ const Cinematic = (() => {
                     outline: action.outline || '#6a94be',
                     label: action.label || null,
                     flip: action.flip || false,
+                    isCloud: action.isCloud || false,
                     sprite: null,
                     anims: null,
                     anim: null,
@@ -249,17 +250,31 @@ const Cinematic = (() => {
                 _ctx.translate(pos.px, pos.py);
             }
 
-            _ctx.fillStyle = e.color;
-            _ctx.fillRect(0, 0, e.w, e.h);
+            if (e.isCloud) {
+                _ctx.fillStyle = e.color;
+                _ctx.fillRect(0, 0, e.w, e.h);
+                _ctx.fillRect(e.w * 0.1, -e.h * 0.4, e.w * 0.4, e.h * 0.4);
+                _ctx.fillRect(e.w * 0.4, -e.h * 0.7, e.w * 0.5, e.h * 0.7);
+                _ctx.fillRect(e.w * 0.8, -e.h * 0.2, e.w * 0.3, e.h * 0.2);
+                
+                _ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                _ctx.fillRect(0, Math.floor(e.h * 0.8), e.w, Math.floor(e.h * 0.2));
+                _ctx.fillRect(e.w * 0.1, -e.h * 0.4 + Math.floor(e.h * 0.4 * 0.8), e.w * 0.4, Math.floor(e.h * 0.4 * 0.2));
+                _ctx.fillRect(e.w * 0.4, -e.h * 0.7 + Math.floor(e.h * 0.7 * 0.8), e.w * 0.5, Math.floor(e.h * 0.7 * 0.2));
+                _ctx.fillRect(e.w * 0.8, -e.h * 0.2 + Math.floor(e.h * 0.2 * 0.8), e.w * 0.3, Math.floor(e.h * 0.2 * 0.2));
+            } else {
+                _ctx.fillStyle = e.color;
+                _ctx.fillRect(0, 0, e.w, e.h);
 
-            if (e.highlight) {
-                _ctx.fillStyle = e.highlight;
-                _ctx.fillRect(4, 4, e.w - 8, Math.max(6, e.h * 0.2));
+                if (e.highlight) {
+                    _ctx.fillStyle = e.highlight;
+                    _ctx.fillRect(4, 4, e.w - 8, Math.max(6, e.h * 0.2));
+                }
+
+                _ctx.strokeStyle = e.outline;
+                _ctx.lineWidth = 2;
+                _ctx.strokeRect(0, 0, e.w, e.h);
             }
-
-            _ctx.strokeStyle = e.outline;
-            _ctx.lineWidth = 2;
-            _ctx.strokeRect(0, 0, e.w, e.h);
 
             if (e.label) {
                 _ctx.fillStyle = '#fff';

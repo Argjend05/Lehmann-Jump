@@ -33,6 +33,7 @@ html {
     top: 0;
     left: 0;
     z-index: 1;
+    image-rendering: pixelated; /* EXPLICIT PIXEL ART RENDERING */
 }
 
 #ui-layer {
@@ -147,8 +148,8 @@ html {
     width: 18px;
     height: 18px;
     background: #ffeb3b;
-    border-radius: 50%;
-    box-shadow: inset -2px -2px 0 #f57f17;
+    border-radius: 0; /* Pixel art block */
+    box-shadow: inset -4px -4px 0 #f57f17, 2px 2px 0 #000;
 }
 
 .button {
@@ -159,12 +160,13 @@ html {
     color: #fff;
     border: 4px solid #fff;
     border-radius: 0;
-    box-shadow: 4px 4px 0px #000;
+    box-shadow: 6px 6px 0px #000;
     cursor: pointer;
     text-transform: uppercase;
     margin: 10px;
     pointer-events: auto;
     transition: transform 0.1s;
+    image-rendering: pixelated;
 }
 
 .button:active {
@@ -294,11 +296,12 @@ html {
     margin-top: 30px;
     padding: 15px;
     background: rgba(0, 0, 0, 0.5);
-    border: 2px solid #555;
-    border-radius: 8px;
+    border: 4px solid #555;
+    border-radius: 0;
     width: 80%;
     max-width: 400px;
     text-align: left;
+    box-shadow: 6px 6px 0px #000;
 }
 
 .lifetime-stats-title {
