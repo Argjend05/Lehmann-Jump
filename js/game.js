@@ -1394,6 +1394,14 @@ function renderSystem(dt) {
                 let speed = animRow === 0 ? 180 : 120; // Faster anim when moving
                 let rowCols = [8, 7, 4][animRow]; // Correct number of frames per row in SVG
                 let frameIdx = Math.floor(performance.now() / speed) % rowCols;
+
+                // Bloquer le sprite sur une seule frame pendant les sauts pour éviter les "convulsions"
+                if (animRow === 1) {
+                    frameIdx = 0; // Pose fixe de montée
+                } else if (animRow === 2 && v.vy > 100) {
+                    frameIdx = 2; // Pose fixe de chute (bras levés)
+                }
+
                 let sx = frameIdx * fw;
                 let sy = animRow * fh;
 
@@ -1488,41 +1496,17 @@ function renderSystem(dt) {
     ctx.restore();
 }
 
-let bgmTimer = 0;
-let bgmStep = 0;
-const bgmNotes = [220, 261.63, 329.63, 392, 440, 523.25]; // A minor pentatonic
+let bgMusic = new Audio('assets/sound/music/mouzik.mp3');
+bgMusic.loop = true;
+bgMusic.volume = 0.4;
 
 function MusicSystem(dt) {
-    if (!soundEnabled || !audioCtx || currentState !== GAME_STATE.PLAYING) return;
-    
-    let pEnt = getEntities(['player'])[0];
-    let isRocket = pEnt && pEnt.getComponent('player').rocketTime > 0;
-    
-    let currentAlt = Math.max(0, Math.floor(-cameraY / 10));
-    let baseInterval = Math.max(0.08, 0.2 - (currentAlt / 20000));
-    if (isRocket) baseInterval = 0.08;
-    
-    bgmTimer -= dt;
-    if (bgmTimer <= 0) {
-        bgmTimer = baseInterval;
-        let note = bgmNotes[bgmStep % bgmNotes.length];
-        bgmStep++;
-        
-        if (Math.random() > 0.8) note *= 2; 
-        if (isRocket) note *= 2;
-        
-        let osc = audioCtx.createOscillator();
-        let gain = audioCtx.createGain();
-        osc.type = isRocket ? 'square' : 'sine';
-        osc.frequency.setValueAtTime(note, audioCtx.currentTime);
-        
-        gain.gain.setValueAtTime(0.03, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + baseInterval * 1.5);
-        
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start(audioCtx.currentTime);
-        osc.stop(audioCtx.currentTime + baseInterval * 1.5);
+    if (!soundEnabled || currentState !== GAME_STATE.PLAYING) {
+        if (!bgMusic.paused) bgMusic.pause();
+        return;
+    }
+    if (bgMusic.paused) {
+        bgMusic.play().catch(e => console.warn("Audio play block:", e));
     }
 }
 
