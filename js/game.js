@@ -1,3 +1,198 @@
+// --- LANGUAGE / TRANSLATIONS ---
+const TRANSLATIONS = {
+    fr: {
+        btn_play: "JOUER",
+        btn_shop: "BOUTIQUE",
+        btn_settings: "PARAMETRES",
+        btn_back: "RETOUR",
+        btn_resume: "REPRENDRE",
+        btn_finish: "TERMINER",
+        btn_continue: "CONTINUER A L'INFINI",
+        btn_retry: "REESSAYER",
+        btn_menu: "RETOUR AU MENU",
+        lang_btn: "🇬🇧 ENGLISH",
+        settings_title: "PARAMETRES",
+        gyro_label: "ACTIVER GYROSCOPE",
+        gyro_instructions: "(DESACTIVER POUR JOUER UNIQUEMENT EN TOUCHANT L'ECRAN)",
+        cinematics_label: "ACTIVER CINEMATIQUES",
+        stats_title: "STATISTIQUES GLOBALES",
+        label_games: "PARTIES JOUEES",
+        label_alt: "ALTITUDE TOTALE",
+        label_coins: "PIECES RECOLTEES",
+        shop_title: "BOUTIQUE",
+        shop_coins_label: "VOS PIECES",
+        magnet_name: "AIMANT x2",
+        magnet_desc: "Attire les pièces plus longtemps (+2s par Niv).",
+        rocket_name: "FUSEE BOOSTER",
+        rocket_desc: "Prolonge la durée de vol (+1.5s par Niv).",
+        fortune_name: "FORTUNE",
+        fortune_desc: "Augmente la valeur des pièces récoltées (+1 par Niv).",
+        pause_title: "PAUSE",
+        victory_title: "VICTOIRE !",
+        victory_text: "INCROYABLE !<br><br>VOUS AVEZ ATTEINT 1500 METRES.",
+        gameover_title: "PARTIE TERMINEE",
+        label_altitude: "ALTITUDE",
+        label_final_coins: "PIECES",
+        high_score: "MEILLEUR SCORE",
+        upgrade_level: (lv, nxt, cost) => `NIV ${lv} -> ${nxt} (${cost} Pièces)`,
+        upgrade_max: "MAX",
+        combo: (n) => `COMBO x${n} !`,
+        biomes: [
+            "L'Ère du Textile (André Koechlin)",
+            "Puissance Industrielle (Alfred Engel)",
+            "Génie Scientifique (J.H. Lambert)"
+        ],
+        cinematics: {
+            koechlin: [
+                "KOECHLIN : Dites-moi Lehmann, ce coton me rappelle etrangement la production de mon confrere Dollfus. Vous l'avez... emprunte ?",
+                "LEHMANN : On va dire que j'ai trouve ces tissus en \"libre acces\" dans la riviere. C'est de l'upcycling sauvage, Andre. Faut vivre avec son temps.",
+                "KOECHLIN : Jean-Henri Dollfus est juste derriere vous et il n'a pas l'air d'apprecier votre concept de mode. Si j'etais vous, je ne trainerais pas a admirer la vue.",
+                "LEHMANN : Il est un peu rigide sur les bords, le Jean-Henri. Je vais monter d'un etage, l'air sera plus pur et moins charge en reproches."
+            ],
+            engel: [
+                "ENGEL : Monter si haut pour echapper a ses responsabilites... Ce n'est pas tres heroique, Monsieur Lehmann. On ne batit rien sur le vol.",
+                "LEHMANN : Ecoutez Alfred, j'ai survecu a un pigeon radioactif et a une baignade forcee. Ce n'est pas un vol, c'est un partage de ressources non consenti. Nuance.",
+                "ENGEL : Dollfus arrive. Il a mobilise la moitie des ouvriers de Mulhouse pour vous rattraper. Vous comptez aller jusqu'ou comme ca ?",
+                "LEHMANN : Jusqu'a ce que mon altitude depasse son niveau de colere. Allez, je file, j'ai l'impression que mes semelles commencent a fondre."
+            ],
+            lambert: [
+                "LAMBERT : Mes calculs sont formels : votre trajectoire est totalement absurde. Pourquoi fuir vers le haut alors que tout finit par redescendre ?",
+                "LEHMANN : Jean-Henri ! Toi qui aimes les chiffres, calcule-moi la probabilite que je m'en sorte si Dollfus me rattrape avec ses ciseaux a textile.",
+                "LAMBERT : Proche de zero. Mais vous avez de la chance, la courbure de l'espace-temps mulhousien joue en votre faveur aujourd'hui. Un dernier saut et vous changez de plan.",
+                "LEHMANN : Parfait. Dis a Jean-Henri que s'il veut ses matieres premieres, il n'a qu'a m'envoyer un mail. Je suis en mode \"ne pas deranger\" la."
+            ],
+            victory: [
+                "LEHMANN : Enfin ! Plus de Dollfus, plus de cris, et surtout plus de pigeons. C'est calme ici.",
+                "LEHMANN : Bon, par contre, j'ai toujours un slip en soie volee et aucune idee de comment redescendre...",
+                "LEHMANN : On verra ca au prochain semestre. Mission accomplie !"
+            ]
+        }
+    },
+    en: {
+        btn_play: "PLAY",
+        btn_shop: "SHOP",
+        btn_settings: "SETTINGS",
+        btn_back: "BACK",
+        btn_resume: "RESUME",
+        btn_finish: "FINISH",
+        btn_continue: "CONTINUE TO INFINITY",
+        btn_retry: "RETRY",
+        btn_menu: "BACK TO MENU",
+        lang_btn: "🇫🇷 FRANÇAIS",
+        settings_title: "SETTINGS",
+        gyro_label: "ENABLE GYROSCOPE",
+        gyro_instructions: "(DISABLE TO PLAY USING TOUCH ONLY)",
+        cinematics_label: "ENABLE CINEMATICS",
+        stats_title: "GLOBAL STATISTICS",
+        label_games: "GAMES PLAYED",
+        label_alt: "TOTAL ALTITUDE",
+        label_coins: "COINS COLLECTED",
+        shop_title: "SHOP",
+        shop_coins_label: "YOUR COINS",
+        magnet_name: "MAGNET x2",
+        magnet_desc: "Attracts coins for longer (+2s per level).",
+        rocket_name: "ROCKET BOOSTER",
+        rocket_desc: "Extends flight duration (+1.5s per level).",
+        fortune_name: "FORTUNE",
+        fortune_desc: "Increases the value of collected coins (+1 per level).",
+        pause_title: "PAUSE",
+        victory_title: "VICTORY!",
+        victory_text: "INCREDIBLE!<br><br>YOU REACHED 1500 METERS.",
+        gameover_title: "GAME OVER",
+        label_altitude: "ALTITUDE",
+        label_final_coins: "COINS",
+        high_score: "BEST SCORE",
+        upgrade_level: (lv, nxt, cost) => `LVL ${lv} -> ${nxt} (${cost} Coins)`,
+        upgrade_max: "MAX",
+        combo: (n) => `COMBO x${n}!`,
+        biomes: [
+            "The Textile Era (André Koechlin)",
+            "Industrial Power (Alfred Engel)",
+            "Scientific Genius (J.H. Lambert)"
+        ],
+        cinematics: {
+            koechlin: [
+                "KOECHLIN : Tell me Lehmann, this cotton strangely reminds me of my colleague Dollfus's production. Did you... borrow it?",
+                "LEHMANN : Let's say I found these fabrics in \"free access\" in the river. It's wild upcycling, Andre. Gotta move with the times.",
+                "KOECHLIN : Jean-Henri Dollfus is right behind you and doesn't seem to appreciate your fashion concept. If I were you, I wouldn't linger admiring the view.",
+                "LEHMANN : Jean-Henri is a bit stiff around the edges. I'll go up a floor, the air will be purer and less loaded with reproaches."
+            ],
+            engel: [
+                "ENGEL : Climbing so high to escape your responsibilities... Not very heroic, Mr. Lehmann. Nothing is built on theft.",
+                "LEHMANN : Listen Alfred, I survived a radioactive pigeon and a forced swim. It's not theft, it's non-consensual resource sharing. There's a difference.",
+                "ENGEL : Dollfus is coming. He mobilized half the workers of Mulhouse to catch you. How far do you plan to go?",
+                "LEHMANN : Until my altitude exceeds his anger level. Gotta go, I feel like my soles are starting to melt."
+            ],
+            lambert: [
+                "LAMBERT : My calculations are clear: your trajectory is completely absurd. Why flee upward when everything eventually comes back down?",
+                "LEHMANN : Jean-Henri! You who love numbers, calculate the odds of me making it if Dollfus catches me with his textile scissors.",
+                "LAMBERT : Close to zero. But you're lucky, the curvature of Mulhouse's space-time is in your favor today. One last jump and you change your plane.",
+                "LEHMANN : Perfect. Tell Jean-Henri that if he wants his raw materials, he can just email me. I'm in \"do not disturb\" mode right now."
+            ],
+            victory: [
+                "LEHMANN : Finally! No more Dollfus, no more screaming, and best of all no more pigeons. It's quiet up here.",
+                "LEHMANN : Well, I still have a stolen silk underwear and no idea how to get back down...",
+                "LEHMANN : We'll figure that out next semester. Mission accomplished!"
+            ]
+        }
+    }
+};
+
+let currentLang = localStorage.getItem('pixelJumperLang') || 'fr';
+
+function applyLanguage(lang) {
+    currentLang = lang;
+    localStorage.setItem('pixelJumperLang', lang);
+    const T = TRANSLATIONS[lang];
+
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (T[key] !== undefined) el.innerText = T[key];
+    });
+
+    const ids = {
+        settingsTitle: 'settings_title',
+        gyroLabelText: 'gyro_label',
+        gyroInstructions: 'gyro_instructions',
+        cinematicsLabelText: 'cinematics_label',
+        statsTitle: 'stats_title',
+        labelGames: 'label_games',
+        labelAlt: 'label_alt',
+        labelCoins: 'label_coins',
+        shopTitle: 'shop_title',
+        shopCoinsLabel: 'shop_coins_label',
+        magnetName: 'magnet_name',
+        magnetDesc: 'magnet_desc',
+        rocketName: 'rocket_name',
+        rocketDesc: 'rocket_desc',
+        fortuneName: 'fortune_name',
+        fortuneDesc: 'fortune_desc',
+        gameOverTitle: 'gameover_title',
+        labelAltitude: 'label_altitude',
+        labelFinalCoins: 'label_final_coins',
+        victoryTitle: 'victory_title',
+    };
+    for (const [id, key] of Object.entries(ids)) {
+        const el = document.getElementById(id);
+        if (el && T[key] !== undefined) el.innerText = T[key];
+    }
+
+    const victoryTextEl = document.getElementById('victoryText');
+    if (victoryTextEl) victoryTextEl.innerHTML = T.victory_text;
+
+    const langBtn = document.getElementById('langToggleBtn');
+    if (langBtn) langBtn.innerText = T.lang_btn;
+
+    const maxHS = localStorage.getItem('pixelJumperHS') || 0;
+    const $hs = document.getElementById('highScoreMenu');
+    if ($hs) $hs.innerText = T.high_score + ' : ' + maxHS + 'M';
+
+    const cinematicsToggle = document.getElementById('cinematicsToggle');
+    if (cinematicsToggle) cinematicsToggle.checked = (localStorage.getItem('pixelJumperCinematics') !== 'false');
+
+    if (typeof SaveManager !== 'undefined') SaveManager.updateUI();
+}
+
 // --- CONSTANTS & SETTINGS ---
 const GRAVITY = 1400;
 const JUMP_FORCE = -850;
@@ -113,12 +308,14 @@ const SaveManager = {
         let shopCoinsEl = document.getElementById('shopCoins');
         if (shopCoinsEl) shopCoinsEl.innerText = this.data.coins;
         
+        const T = TRANSLATIONS[currentLang] || TRANSLATIONS.fr;
+
         let mLevel = this.data.upgrades.magnetDuration;
         let mCost = UPGRADE_COSTS.magnetDuration[mLevel];
         let mBtn = document.getElementById('buyMagnetBtn');
         if (mBtn) {
-            if (mCost) mBtn.innerText = `NIV ${mLevel} -> ${mLevel+1} (${mCost} Pièces)`;
-            else mBtn.innerText = "MAX";
+            if (mCost) mBtn.innerText = T.upgrade_level(mLevel, mLevel+1, mCost);
+            else mBtn.innerText = T.upgrade_max;
             mBtn.disabled = !mCost || this.data.coins < mCost;
         }
 
@@ -126,8 +323,8 @@ const SaveManager = {
         let rCost = UPGRADE_COSTS.rocketDuration[rLevel];
         let rBtn = document.getElementById('buyRocketBtn');
         if (rBtn) {
-            if (rCost) rBtn.innerText = `NIV ${rLevel} -> ${rLevel+1} (${rCost} Pièces)`;
-            else rBtn.innerText = "MAX";
+            if (rCost) rBtn.innerText = T.upgrade_level(rLevel, rLevel+1, rCost);
+            else rBtn.innerText = T.upgrade_max;
             rBtn.disabled = !rCost || this.data.coins < rCost;
         }
 
@@ -135,8 +332,8 @@ const SaveManager = {
         let cCost = UPGRADE_COSTS.coinValue[cLevel];
         let cBtn = document.getElementById('buyCoinValueBtn');
         if (cBtn) {
-            if (cCost) cBtn.innerText = `NIV ${cLevel} -> ${cLevel+1} (${cCost} Pièces)`;
-            else cBtn.innerText = "MAX";
+            if (cCost) cBtn.innerText = T.upgrade_level(cLevel, cLevel+1, cCost);
+            else cBtn.innerText = T.upgrade_max;
             cBtn.disabled = !cCost || this.data.coins < cCost;
         }
     }
@@ -203,11 +400,7 @@ function checkBiome(currentScore) {
 
     if (newIndex !== currentBiomeIndex && newIndex !== -1) {
         currentBiomeIndex = newIndex;
-        let biomeNames = [
-            "L'Ère du Textile (André Koechlin)",
-            "Puissance Industrielle (Alfred Engel)",
-            "Génie Scientifique (J.H. Lambert)"
-        ];
+        let biomeNames = TRANSLATIONS[currentLang].biomes;
         showBiomeToast(biomeNames[newIndex]);
     }
 }
@@ -1550,7 +1743,7 @@ function gameLoop(time) {
             $comboEl.classList.add('hidden');
         } else if (comboCount > 1) {
             $comboEl.classList.remove('hidden');
-            $comboEl.innerText = `COMBO x${comboCount} !`;
+            $comboEl.innerText = TRANSLATIONS[currentLang].combo(comboCount);
         }
     }
 
@@ -1580,49 +1773,39 @@ function gameLoop(time) {
 
     if (score >= 300 && !playedCinematics.koechlin) {
         playedCinematics.koechlin = true;
-        triggerCinematic("koechlin", "ANDRE KOECHLIN", [
-            "KOECHLIN : Dites-moi Lehmann, ce coton me rappelle etrangement la production de mon confrere Dollfus. Vous l'avez... emprunte ?",
-            "LEHMANN : On va dire que j'ai trouve ces tissus en \"libre acces\" dans la riviere. C'est de l'upcycling sauvage, Andre. Faut vivre avec son temps.",
-            "KOECHLIN : Jean-Henri Dollfus est juste derriere vous et il n'a pas l'air d'apprecier votre concept de mode. Si j'etais vous, je ne trainerais pas a admirer la vue.",
-            "LEHMANN : Il est un peu rigide sur les bords, le Jean-Henri. Je vais monter d'un etage, l'air sera plus pur et moins charge en reproches."
-        ], 2);
-        return;
+        if (cinematicsEnabled) {
+            triggerCinematic("koechlin", "ANDRE KOECHLIN", TRANSLATIONS[currentLang].cinematics.koechlin, 2);
+            return;
+        }
     }
-    
+
     if (score >= 3000 && !playedCinematics.engel) {
         playedCinematics.engel = true;
-        triggerCinematic("engel", "ALFRED ENGEL", [
-            "ENGEL : Monter si haut pour echapper a ses responsabilites... Ce n'est pas tres heroique, Monsieur Lehmann. On ne batit rien sur le vol.",
-            "LEHMANN : Ecoutez Alfred, j'ai survecu a un pigeon radioactif et a une baignade forcee. Ce n'est pas un vol, c'est un partage de ressources non consenti. Nuance.",
-            "ENGEL : Dollfus arrive. Il a mobilise la moitie des ouvriers de Mulhouse pour vous rattraper. Vous comptez aller jusqu'ou comme ca ?",
-            "LEHMANN : Jusqu'a ce que mon altitude depasse son niveau de colere. Allez, je file, j'ai l'impression que mes semelles commencent a fondre."
-        ], 2);
-        return;
+        if (cinematicsEnabled) {
+            triggerCinematic("engel", "ALFRED ENGEL", TRANSLATIONS[currentLang].cinematics.engel, 2);
+            return;
+        }
     }
-    
+
     if (score >= 10000 && !playedCinematics.lambert) {
         playedCinematics.lambert = true;
-        triggerCinematic("lambert", "J.H. LAMBERT", [
-            "LAMBERT : Mes calculs sont formels : votre trajectoire est totalement absurde. Pourquoi fuir vers le haut alors que tout finit par redescendre ?",
-            "LEHMANN : Jean-Henri ! Toi qui aimes les chiffres, calcule-moi la probabilite que je m'en sorte si Dollfus me rattrape avec ses ciseaux a textile.",
-            "LAMBERT : Proche de zero. Mais vous avez de la chance, la courbure de l'espace-temps mulhousien joue en votre faveur aujourd'hui. Un dernier saut et vous changez de plan.",
-            "LEHMANN : Parfait. Dis a Jean-Henri que s'il veut ses matieres premieres, il n'a qu'a m'envoyer un mail. Je suis en mode \"ne pas deranger\" la."
-        ], 2);
-        return;
+        if (cinematicsEnabled) {
+            triggerCinematic("lambert", "J.H. LAMBERT", TRANSLATIONS[currentLang].cinematics.lambert, 2);
+            return;
+        }
     }
 
     // Check Victory
     if (score >= 1500 && !infiniteMode) {
         if (!playedCinematics.victory) {
             playedCinematics.victory = true;
-            triggerCinematic("lehmann", "LEHMANN", [
-                "LEHMANN : Enfin ! Plus de Dollfus, plus de cris, et surtout plus de pigeons. C'est calme ici.",
-                "LEHMANN : Bon, par contre, j'ai toujours un slip en soie volee et aucune idee de comment redescendre...",
-                "LEHMANN : On verra ca au prochain semestre. Mission accomplie !"
-            ], -1, () => {
-                setVictory();
-            }, true);
-            return;
+            if (cinematicsEnabled) {
+                triggerCinematic("lehmann", "LEHMANN", TRANSLATIONS[currentLang].cinematics.victory, -1, () => {
+                    setVictory();
+                }, true);
+                return;
+            }
+            setVictory();
         }
     }
 
@@ -1797,6 +1980,7 @@ function updateTouch(e) {
 }
 
 let gyroEnabled = localStorage.getItem('pixelJumperGyro') !== 'false';
+let cinematicsEnabled = localStorage.getItem('pixelJumperCinematics') !== 'false';
 
 function handleOrientation(e) {
     if (!gyroEnabled) { input.tiltX = 0; return; }
@@ -1815,7 +1999,7 @@ document.getElementById('menuReturnBtn').addEventListener('click', () => {
     $menuScreen.classList.remove('hidden');
     currentState = GAME_STATE.MENU;
     let maxHS = localStorage.getItem('pixelJumperHS') || 0;
-    $highScoreMenu.innerText = 'MEILLEUR SCORE : ' + maxHS + 'M';
+    $highScoreMenu.innerText = TRANSLATIONS[currentLang].high_score + ' : ' + maxHS + 'M';
 });
 document.getElementById('resumeBtn').addEventListener('click', resumeGame);
 document.getElementById('devBtn300').addEventListener('click', () => teleportTo(300));
@@ -1833,10 +2017,15 @@ $victoryContinueBtn.addEventListener('click', () => {
 });
 $pauseBtn.addEventListener('click', togglePause);
 
+document.getElementById('langToggleBtn').addEventListener('click', () => {
+    applyLanguage(currentLang === 'fr' ? 'en' : 'fr');
+});
+
 $settingsBtn.addEventListener('click', () => {
     $menuScreen.classList.add('hidden');
     $settingsScreen.classList.remove('hidden');
     $gyroToggle.checked = gyroEnabled;
+    document.getElementById('cinematicsToggle').checked = cinematicsEnabled;
 });
 $closeSettingsBtn.addEventListener('click', () => {
     $settingsScreen.classList.add('hidden');
@@ -1845,6 +2034,10 @@ $closeSettingsBtn.addEventListener('click', () => {
 $gyroToggle.addEventListener('change', (e) => {
     gyroEnabled = e.target.checked;
     localStorage.setItem('pixelJumperGyro', gyroEnabled);
+});
+document.getElementById('cinematicsToggle').addEventListener('change', (e) => {
+    cinematicsEnabled = e.target.checked;
+    localStorage.setItem('pixelJumperCinematics', cinematicsEnabled);
 });
 
 $soundBtn.addEventListener('click', () => {
@@ -1921,9 +2114,8 @@ function startGame() {
 }
 
 // --- INIT ---
-let initialHS = localStorage.getItem('pixelJumperHS') || 0;
-$highScoreMenu.innerText = 'MEILLEUR SCORE : ' + initialHS + 'M';
 $statGames.innerText = localStorage.getItem('pjTotalGames') || 0;
 $statCoins.innerText = localStorage.getItem('pjTotalCoins') || 0;
 $statAlt.innerText = localStorage.getItem('pjTotalAlt') || 0;
+applyLanguage(currentLang);
 $soundBtn.innerText = soundEnabled ? '🔊' : '🔇';
