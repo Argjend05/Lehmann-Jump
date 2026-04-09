@@ -138,11 +138,11 @@ const TRANSLATIONS = {
     }
 };
 
-let currentLang = localStorage.getItem('pixelJumperLang') || 'fr';
+let currentLang = localStorage.getItem('gamelang') || 'fr';
 
 function applyLanguage(lang) {
     currentLang = lang;
-    localStorage.setItem('pixelJumperLang', lang);
+    localStorage.setItem('gamelang', lang);
     const T = TRANSLATIONS[lang];
 
     document.querySelectorAll('[data-i18n]').forEach(el => {
