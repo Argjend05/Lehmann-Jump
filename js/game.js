@@ -1346,7 +1346,6 @@ function renderSystem(dt) {
         if (e.hasComponent('platform')) {
             let pType = e.getComponent('platform');
             if (pType.broken) {
-                // Ghost Fade
                 ctx.globalAlpha = 0.2 + (Math.random() * 0.1);
                 ctx.fillStyle = pType.type === 3 ? '#d84315' : '#8d6e63';
                 ctx.fillRect(t.x, t.y, t.w, t.h);
@@ -1355,22 +1354,21 @@ function renderSystem(dt) {
             }
 
             let base, high, shad;
-            if (pType.type === 0) { // Normal
+            if (pType.type === 0) {
                 base = '#78909c'; high = '#b0bec5'; shad = '#455a64';
-            } else if (pType.type === 1) { // Moving
+            } else if (pType.type === 1) {
                 base = '#fbc02d'; high = '#fff59d'; shad = '#f57f17';
-            } else if (pType.type === 2) { // Fragile
+            } else if (pType.type === 2) {
                 base = '#8d6e63'; high = '#a1887f'; shad = '#5d4037';
-            } else if (pType.type === 3) { // Heated
+            } else if (pType.type === 3) {
                 base = '#d84315'; high = '#ffcc80'; shad = '#bf360c';
-            } else if (pType.type === 4 || pType.type === 5) { // Conveyors
+            } else if (pType.type === 4 || pType.type === 5) {
                 base = '#607d8b'; high = '#cfd8dc'; shad = '#37474f';
-            } else if (pType.type === 6) { // Ghost
+            } else if (pType.type === 6) {
                 base = '#9c27b0'; high = '#e1bee7'; shad = '#4a148c';
                 ctx.globalAlpha = pType.active ? 0.8 : 0.2;
             }
 
-            // Pixelated Beam body
             ctx.fillStyle = base;
             ctx.fillRect(t.x, t.y, t.w, t.h);
 
@@ -1380,13 +1378,12 @@ function renderSystem(dt) {
             ctx.fillStyle = shad;
             ctx.fillRect(t.x, t.y + t.h - Math.floor(t.h / 3), t.w, Math.floor(t.h / 3));
             
-            // Checkerboard detail
             ctx.fillStyle = shad;
             for(let px = 0; px < t.w - 8; px += 8) {
                 if((px/8)%2 === 0) ctx.fillRect(t.x + px, t.y + Math.floor(t.h / 3), 8, Math.floor(t.h / 3));
             }
 
-            // Stripes for Moving Platforms
+            // Rayures animées pour les plateformes mobiles
             if (pType.type === 1) {
                 ctx.save();
                 ctx.beginPath();
@@ -1404,7 +1401,6 @@ function renderSystem(dt) {
                 ctx.restore();
             }
 
-            // Rivets
             ctx.fillStyle = shad;
             for (let rx = 10; rx < t.w - 10; rx += 16) {
                 ctx.fillRect(t.x + rx, t.y + t.h / 2 - 2, 4, 4);
@@ -1417,7 +1413,7 @@ function renderSystem(dt) {
             ctx.lineWidth = 2;
             ctx.strokeRect(t.x, t.y, t.w, t.h);
 
-            // Conveyor arrows
+            // Flèches animées des tapis roulants
             if (pType.type === 4 || pType.type === 5) {
                 ctx.fillStyle = '#ffeb3b';
                 let offset = (performance.now() / 15) % 20;
@@ -1437,7 +1433,7 @@ function renderSystem(dt) {
                 }
             }
 
-            // Heated aura for Spike substitute
+            // Aura de chaleur pour les piques
             if (pType.type === 3) {
                 let pulse = Math.sin(performance.now() / 150) * 4;
                 ctx.fillStyle = 'rgba(255, 87, 34, 0.5)';
@@ -1457,10 +1453,10 @@ function renderSystem(dt) {
                 ctx.fill();
                 return;
             }
-            if (bType === 0) ctx.fillStyle = '#ffeb3b'; // coin
-            if (bType === 1) ctx.fillStyle = '#e91e63'; // spring
-            if (bType === 2) ctx.fillStyle = '#9c27b0'; // magnet
-            if (bType === 3) ctx.fillStyle = '#ff5722'; // rocket
+            if (bType === 0) ctx.fillStyle = '#ffeb3b';
+            if (bType === 1) ctx.fillStyle = '#e91e63';
+            if (bType === 2) ctx.fillStyle = '#9c27b0';
+            if (bType === 3) ctx.fillStyle = '#ff5722';
 
             ctx.fillRect(t.x, t.y, t.w, t.h);
             ctx.strokeStyle = '#000';
@@ -1478,21 +1474,19 @@ function renderSystem(dt) {
         }
     });
 
-    // Trails Update & Render
     motionTrails.forEach(tr => {
         ctx.globalAlpha = tr.life;
         ctx.fillStyle = tr.color;
         ctx.fillRect(tr.x, tr.y, tr.w, tr.h);
-        tr.life -= dt * 2.5; // faint speed
+        tr.life -= dt * 2.5;
     });
     ctx.globalAlpha = 1;
     motionTrails = motionTrails.filter(tr => tr.life > 0);
 
-    // Render Hazards
     getEntities(['hazard', 'transform']).forEach(h => {
         let t = h.getComponent('transform');
         
-        // Warning indicator if meteor is above the screen
+        // Indicateur d'avertissement : météore hors écran
         if (t.y + t.h < cameraY) {
             ctx.fillStyle = `rgba(255, 0, 0, ${0.3 + 0.7 * Math.abs(Math.sin(performance.now() / 150))})`;
             ctx.fillRect(t.x + t.w/2 - 10, cameraY + 10, 20, 20); // Blocky warning
@@ -1503,18 +1497,16 @@ function renderSystem(dt) {
         ctx.fillRect(t.x, t.y + 2, t.w, t.h - 4);
         ctx.fillStyle = '#ffeb3b';
         ctx.fillRect(t.x + t.w/4, t.y + t.h/2, t.w/2, t.h/2);
-        // trail
         ctx.fillStyle = 'rgba(244, 67, 54, 0.5)';
         ctx.fillRect(t.x + 4, t.y - 60, t.w - 8, 60);
     });
 
-    // Render Player
     getEntities(['player']).forEach(e => {
         let t = e.getComponent('transform');
         let v = e.getComponent('velocity');
         let pCmp = e.getComponent('player');
 
-        // Spawn Trail if extremely fast
+        // Traînée de mouvement à grande vitesse
         if (Math.abs(v.vy) > 1000 || Math.abs(v.vx) > 500 || pCmp.rocketTime > 0) {
             motionTrails.push({ x: t.x, y: t.y, w: t.w, h: t.h, life: 0.5, color: pCmp.rocketTime > 0 ? '#ff5722' : '#00e5ff' });
         }
@@ -1528,7 +1520,7 @@ function renderSystem(dt) {
             let scaleX = 1 - stretch * 0.4;
             ctx.scale(scaleX, scaleY);
 
-            // Magnet outline pulse
+            // Effet de pulsation de l'aimant
             if (pCmp.magnetTime > 0) {
                 let pulse = Math.abs(Math.sin(performance.now() / 150)) * 4;
                 ctx.fillStyle = '#9c27b0';
@@ -1540,37 +1532,33 @@ function renderSystem(dt) {
                 ctx.shadowBlur = 20;
             }
 
-            // Draw Lehmann sprite from spritesheet
-            // Layout: 8 columns x 3 rows, each cell = 24 x 48 px (approx)
-            // Row 0 = idle/walk, Row 1 = jump/up, Row 2 = fall/down
+            // Dessin du sprite Lehmann (spritesheet 8×3, cellules 24×48px)
             if (lehmannImg.complete && lehmannImg.naturalWidth > 0) {
                 let cols = 8;
                 let rows = 3;
                 let fw = Math.floor(lehmannImg.naturalWidth / cols);  // 24
                 let fh = 48; // Correct cell height for the 24x48 grid (ignore SVG total height 176)
 
-                // Pick animation row based on vertical velocity
                 let animRow;
                 if (pCmp.rocketTime > 0) {
-                    animRow = 1; // Jump/ascend during rocket
+                    animRow = 1; // Fusée active : pose de montée
                 } else if (v.vy < -100) {
-                    animRow = 1; // Jumping up
+                    animRow = 1; // Saut
                 } else if (v.vy > 100) {
-                    animRow = 2; // Falling down
+                    animRow = 2; // Chute
                 } else {
-                    animRow = 0; // Idle
+                    animRow = 0; // Repos
                 }
 
-                // Cycle through frames on the current row
-                let speed = animRow === 0 ? 180 : 120; // Faster anim when moving
-                let rowCols = [8, 7, 4][animRow]; // Correct number of frames per row in SVG
+                let speed = animRow === 0 ? 180 : 120;
+                let rowCols = [8, 7, 4][animRow];
                 let frameIdx = Math.floor(performance.now() / speed) % rowCols;
 
-                // Bloquer le sprite sur une seule frame pendant les sauts pour éviter les "convulsions"
+                // Pose fixe pendant le saut/chute pour éviter les micro-animations
                 if (animRow === 1) {
-                    frameIdx = 0; // Pose fixe de montée
+                    frameIdx = 0;
                 } else if (animRow === 2 && v.vy > 100) {
-                    frameIdx = 2; // Pose fixe de chute (bras levés)
+                    frameIdx = 2;
                 }
 
                 let sx = frameIdx * fw;
@@ -1585,16 +1573,14 @@ function renderSystem(dt) {
                 ctx.drawImage(lehmannImg, sx, sy, fw, fh, -drawW / 2, -drawH + 4, drawW, drawH);
                 ctx.restore();
             } else {
-                // Fallback cube
                 ctx.fillStyle = pCmp.rocketTime > 0 ? '#ff5722' : '#00e5ff';
                 ctx.fillRect(-t.w / 2, -t.h, t.w, t.h);
             }
             
-            // Reset shadow to prevent bleeding
+            // Réinitialisation de l'ombre pour éviter les débordements
             ctx.shadowColor = 'transparent';
             ctx.shadowBlur = 0;
 
-            // Exhaust
             if (pCmp.rocketTime > 0) {
                 ctx.fillStyle = '#ffeb3b';
                 ctx.fillRect(-t.w / 2 + 4, 0, t.w - 8, 15 + Math.random() * 20);
@@ -1610,26 +1596,23 @@ function renderSystem(dt) {
         else if (t.x < 0) drawBlob(cw);
     });
 
-    // Render Enemies
     getEntities(['enemy', 'transform']).forEach(e => {
         let t = e.getComponent('transform');
-        ctx.fillStyle = '#673ab7'; // Deep purple enemy
-        // Pixelated triangle approximation
+        ctx.fillStyle = '#673ab7';
         ctx.fillRect(t.x, t.y, t.w, Math.floor(t.h/3));
         ctx.fillRect(t.x + t.w*0.2, t.y + Math.floor(t.h/3), t.w*0.6, Math.floor(t.h/3));
         ctx.fillRect(t.x + t.w*0.4, t.y + Math.floor(t.h*0.66), t.w*0.2, Math.floor(t.h/3));
         
         ctx.fillStyle = '#ff5722';
-        ctx.fillRect(t.x + t.w/2 - 4, t.y + t.h/2 - 4, 8, 8); // Eye
-        
+        ctx.fillRect(t.x + t.w/2 - 4, t.y + t.h/2 - 4, 8, 8);
+
         let pCmp = e.getComponent('patrol');
-        if(pCmp) { // Thruster based on dir
+        if(pCmp) {
             ctx.fillStyle = '#00e5ff';
             ctx.fillRect(t.x + (pCmp.direction > 0 ? -4 : t.w), t.y + 10, 4, 10);
         }
     });
 
-    // Render Projectiles
     getEntities(['projectile', 'transform']).forEach(e => {
         let t = e.getComponent('transform');
         ctx.fillStyle = '#ff5722';
@@ -1639,7 +1622,6 @@ function renderSystem(dt) {
         ctx.fillRect(t.x + t.w/2 - t.w/8, t.y + t.h/2 - t.h/8, t.w/4, t.h/4);
     });
 
-    // Particles
     particles.forEach(p => {
         ctx.fillStyle = p.color;
         ctx.globalAlpha = p.life / p.maxLife;
@@ -1647,7 +1629,6 @@ function renderSystem(dt) {
     });
     ctx.globalAlpha = 1;
 
-    // Floating Texts
     floatingTexts.forEach(ft => {
         ctx.globalAlpha = ft.life;
         ctx.fillStyle = ft.color;
@@ -1681,7 +1662,7 @@ function MusicSystem(dt) {
     }
 }
 
-// --- GAME LOOP ---
+// --- BOUCLE DE JEU ---
 function gameLoop(time) {
     if (currentState !== GAME_STATE.PLAYING && currentState !== GAME_STATE.CINEMATIC) return;
     animationFrameId = requestAnimationFrame(gameLoop);
@@ -1690,7 +1671,7 @@ function gameLoop(time) {
     let dt = (currentTime - lastTime) / 1000;
     lastTime = currentTime;
 
-    if (isNaN(dt) || dt < 0.001 || dt > 0.1) dt = 0.016; // strict anti-NaN fallback
+    if (isNaN(dt) || dt < 0.001 || dt > 0.1) dt = 0.016; // Protection anti-NaN
 
     if (currentState === GAME_STATE.CINEMATIC) {
         updateParticles(dt);
@@ -1698,7 +1679,7 @@ function gameLoop(time) {
         return;
     }
 
-    // Smooth Camera Lerp
+    // Interpolation fluide de la caméra
     if (!isNaN(targetCameraY) && !isNaN(cameraY)) {
         cameraY += (targetCameraY - cameraY) * 8 * dt;
     }
@@ -1713,7 +1694,6 @@ function gameLoop(time) {
         Haptics.rocketUpdate(pLogic.rocketTime > 0);
     }
 
-    // Combos
     if (comboCount > 0) {
         comboTimer -= dt;
         if (comboTimer <= 0) {
@@ -1732,7 +1712,6 @@ function gameLoop(time) {
     SpawnerSystem();
     MusicSystem(dt);
 
-    // Cleanup
     entities.forEach(e => {
         if (e.hasComponent('transform') && e.getComponent('transform').y > cameraY + ch + 400) {
             removeEntity(e);
@@ -1743,7 +1722,6 @@ function gameLoop(time) {
 
     renderSystem(dt);
 
-    // Update HUD
     let currentAlt = Math.max(0, Math.floor(-cameraY / 10));
     if (currentAlt > score) score = currentAlt;
     
@@ -1773,7 +1751,6 @@ function gameLoop(time) {
         }
     }
 
-    // Check Victory
     if (score >= 1500 && !infiniteMode) {
         if (!playedCinematics.victory) {
             playedCinematics.victory = true;
@@ -1833,7 +1810,6 @@ function setGameOver() {
     let pEnt = getEntities(['player'])[0];
     let coinsRound = pEnt ? pEnt.getComponent('player').coins : 0;
 
-    // Add coins to persistent shop
     if (coinsRound > 0) SaveManager.addCoins(coinsRound);
 
     let totalGames = parseInt(localStorage.getItem('pjTotalGames') || '0') + 1;
@@ -1920,7 +1896,7 @@ function resumeGame() {
     }, 1000);
 }
 
-// --- INPUT HANDLING ---
+// --- ENTRÉES JOUEUR ---
 window.addEventListener('keydown', e => {
     input.keys[e.code] = true;
     if (e.code === 'Escape' || e.code === 'KeyP') togglePause();
@@ -1947,7 +1923,7 @@ canvas.addEventListener('touchend', e => updateTouch(e), { passive: false });
 canvas.addEventListener('touchcancel', e => updateTouch(e), { passive: false });
 
 function updateTouch(e) {
-    e.preventDefault(); // disable double zoom
+    e.preventDefault(); // Empêche le double zoom tactile
     input.touchLeft = false;
     input.touchRight = false;
     let screenHalf = window.innerWidth / 2;
@@ -1964,7 +1940,7 @@ function handleOrientation(e) {
     if (!gyroEnabled) { input.tiltX = 0; return; }
     if (e.gamma != null) {
         let g = Number(e.gamma) || 0;
-        if (g > 30) g = 30; // Max speed at 30 deg
+        if (g > 30) g = 30;
         if (g < -30) g = -30;
         input.tiltX = g / 30;
     }
@@ -2058,7 +2034,7 @@ if ($buyCoinValueBtn) {
 }
 
 function attemptStart() {
-    initAudio(); // Required on gesture
+    initAudio(); // L'audio doit être déverrouillé sur une interaction utilisateur
     if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
         DeviceOrientationEvent.requestPermission()
             .then(res => {
@@ -2091,7 +2067,7 @@ function startGame() {
     });
 }
 
-// --- INIT ---
+// --- DÉMARRAGE ---
 $statGames.innerText = localStorage.getItem('pjTotalGames') || 0;
 $statCoins.innerText = localStorage.getItem('pjTotalCoins') || 0;
 $statAlt.innerText = localStorage.getItem('pjTotalAlt') || 0;
