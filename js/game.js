@@ -193,7 +193,7 @@ function applyLanguage(lang) {
     if (typeof SaveManager !== 'undefined') SaveManager.updateUI();
 }
 
-// --- CONSTANTS & SETTINGS ---
+// --- CONSTANTES & CONFIGURATION ---
 const GRAVITY = 1400;
 const JUMP_FORCE = -850;
 const SPRING_FORCE = -1400;
@@ -203,13 +203,13 @@ const DECELERATION = 3500;
 const PLATFORM_WIDTH = 80;
 const PLATFORM_HEIGHT = 16;
 
-// --- AUDIO SYSTEM ---
+// --- SYSTÈME AUDIO ---
 const AudioContext = window.AudioContext || window.webkitAudioContext;
 let audioCtx = null;
 let soundEnabled = localStorage.getItem('pixelJumperSound') !== 'false';
 
 function initAudio() {
-    if (!AudioContext) return; // Prevent crashes on unsupported browsers
+    if (!AudioContext) return; // Sécurité pour les navigateurs qui ne supportent pas l'API Web Audio
     if (!audioCtx) {
         audioCtx = new AudioContext();
         // Joue un son silencieux immédiatement pour débloquer l'API Web Audio sur mobile (iOS/Android)
@@ -254,11 +254,11 @@ const SFX = {
     magnet: () => playSound([600, 400, 600], 'sine', 0.2, 0.05)
 };
 
-// --- SAVE MANAGER & SHOP ---
+// --- SAUVEGARDE & BOUTIQUE ---
 const DEFAULT_SAVE_DATA = {
     coins: 0,
     upgrades: {
-        magnetDuration: 0, // Level 0 to 5
+        magnetDuration: 0,
         rocketDuration: 0,
         coinValue: 0
     }
@@ -341,7 +341,7 @@ const SaveManager = {
 
 SaveManager.load();
 
-// --- ECS FRAMEWORK ---
+// --- FRAMEWORK ECS ---
 class Entity {
     constructor() {
         this.id = Math.random().toString(36).substr(2, 9);
@@ -378,18 +378,18 @@ function cleanUpEntities() {
     }
 }
 
-// --- COMPONENTS ---
+// --- COMPOSANTS ---
 function Transform(x, y, w, h) { return { name: 'transform', x, y, w, h }; }
 function Velocity(vx, vy) { return { name: 'velocity', vx, vy }; }
 function GravityCmp(f) { return { name: 'gravity', force: f }; }
 function PlatformCmp(t) { return { name: 'platform', type: t, broken: false, respawnTimer: 0, speedX: (Math.random() > 0.5 ? 1 : -1) * (60 + Math.random() * 60) }; }
-function BonusCmp(t) { return { name: 'bonus', type: t }; } // 0:coin, 1:spring, 2:magnet, 3:rocket
+function BonusCmp(t) { return { name: 'bonus', type: t }; } // types: 0=pièce, 1=ressort, 2=aimant, 3=fusée, 4=portail
 function PlayerCmp() { return { name: 'player', magnetTime: 0, rocketTime: 0, coins: 0 }; }
 function EnemyCmp(type, hp) { return { name: 'enemy', type, hp, attackTimer: 0 }; }
 function PatrolCmp(startX, range, speed) { return { name: 'patrol', startX, range, speed, direction: 1 }; }
 function ProjectileCmp(damage, owner) { return { name: 'projectile', damage, owner, life: 3.0 }; }
 
-// --- BIOME SYSTEM ---
+// --- SYSTÈME DE BIOMES ---
 let currentBiomeIndex = -1;
 
 function checkBiome(currentScore) {
@@ -415,10 +415,10 @@ function showBiomeToast(name) {
     
     setTimeout(() => {
         if (toast.parentNode) toast.parentNode.removeChild(toast);
-    }, 4000); // 3s animation + 1s buffer
+    }, 4000);
 }
 
-// --- GLOBALS ---
+// --- VARIABLES GLOBALES ---
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 let cw = window.innerWidth, ch = window.innerHeight;
@@ -464,11 +464,11 @@ const Haptics = {
     }
 };
 
-// --- CINEMATIC SYSTEM ---
+// --- SYSTÈME CINÉMATIQUE ---
 function triggerCinematic(characterId, characterName, textArray, castIndex, onEndCallback, isVictory = false) {
     currentState = GAME_STATE.CINEMATIC;
     
-    // Stop rockets and dashes so player literally hangs in the air gently
+    // Fige le joueur pour qu'il flotte pendant la cinématique
     getEntities(['player', 'velocity']).forEach(e => {
         let v = e.getComponent('velocity');
         v.vy = 0;
@@ -485,12 +485,10 @@ function triggerCinematic(characterId, characterName, textArray, castIndex, onEn
             });
             
             let cloudActions = [];
-            // Spawn some background clouds
             for (let i = 0; i < 15; i++) {
                 cloudActions.push({ type: 'spawn', id: 'cloud'+i, x: Math.random()*1.2 - 0.1, y: Math.random()*1.2 - 0.1, w: Math.random()*100 + 80, h: Math.random()*40 + 20, color: '#ffffff', isCloud: true });
             }
             cloudActions.push({ type: 'spawn', id: 'lehmann', x: 0.5, y: 0.5, sprite: 'assets/lehmann.svg', anims: { idle: { srcY: 0, frameW: 24, frameH: 48, frames: 8, fps: 6 } }, anim: 'idle', scale: 4, flip: false });
-            // Add a little floating up move
             cloudActions.push({ type: 'move', id: 'lehmann', x: 0.5, y: 0.45, duration: 2000 });
 
             steps.push({
@@ -518,7 +516,6 @@ function triggerCinematic(characterId, characterName, textArray, castIndex, onEn
                 introActions.push({ type: 'move', id: characterId, x: 0.25, y: 0.65, duration: 800 });
             }
             
-            // Lehmann always appears
             introActions.push({ type: 'spawn', id: 'lehmann', x: 1.2, y: 0.65, sprite: 'assets/lehmann.svg', anims: { idle: { srcY: 0, frameW: 24, frameH: 48, frames: 8, fps: 6 } }, anim: 'idle', scale: 2.8, flip: true });
             introActions.push({ type: 'move', id: 'lehmann', x: 0.75, y: 0.65, duration: 800 });
 
@@ -583,21 +580,16 @@ function triggerCinematic(characterId, characterName, textArray, castIndex, onEn
         let fw = Math.floor(img.naturalWidth / 4);
         let fh = Math.floor(img.naturalHeight / 3);
 
-        // On crée une spritesheet modifiée en mémoire pour que cinematic.js 
-        // boucle uniquement sur les deux dernières frames de magie (index 2 et 3).
+        // Spritesheet modifiée en mémoire : la ligne Cast ne boucle que sur les frames 2-3
         let offCanvas = document.createElement('canvas');
         offCanvas.width = img.naturalWidth;
         offCanvas.height = img.naturalHeight;
         let oCtx = offCanvas.getContext('2d');
-        
-        // Row 0 : Idle (intact)
+
         oCtx.drawImage(img, 0, 0, fw * 4, fh, 0, 0, fw * 4, fh);
-        
-        // Row 1 : Cast (On recopie les frames 2 et 3 sur les colonnes 0/2 et 1/3)
-        // Frame 0 et 2
+
         oCtx.drawImage(img, fw * 2, fh, fw, fh, 0, fh, fw, fh);
         oCtx.drawImage(img, fw * 2, fh, fw, fh, fw * 2, fh, fw, fh);
-        // Frame 1 et 3
         oCtx.drawImage(img, fw * 3, fh, fw, fh, fw, fh, fw, fh);
         oCtx.drawImage(img, fw * 3, fh, fw, fh, fw * 3, fh, fw, fh);
 
@@ -624,7 +616,7 @@ function triggerCinematic(characterId, characterName, textArray, castIndex, onEn
     }
 }
 
-// --- DOM ELEMENTS ---
+// --- ÉLÉMENTS DOM ---
 const $scoreEl = document.getElementById('scoreEl');
 const $victoryScreen = document.getElementById('victoryScreen');
 const $victoryFinishBtn = document.getElementById('victoryFinishBtn');
@@ -655,12 +647,12 @@ const $buyMagnetBtn = document.getElementById('buyMagnetBtn');
 const $buyRocketBtn = document.getElementById('buyRocketBtn');
 const $buyCoinValueBtn = document.getElementById('buyCoinValueBtn');
 
-// --- SETUP ---
+// --- INITIALISATION ---
 function resize() {
     let screenW = window.innerWidth;
     let screenH = window.innerHeight;
     
-    // Virtual sizing: Prevent "zoomed in" feel on mobile screens.
+    // Redimensionnement virtuel pour éviter l'effet de zoom sur mobile
     if (screenW < 500) {
         gameScale = screenW / 500;
         cw = 500;
@@ -684,7 +676,7 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
-// Init Parallax Clouds for the sunny sky
+// Initialisation des nuages en parallaxe
 for (let i = 0; i < 15; i++) {
     clouds.push({
         x: Math.random() * cw * 2,
@@ -726,7 +718,7 @@ function addShake(amt) {
     screenShake = Math.max(screenShake, amt);
 }
 
-// --- SYSTEMS ---
+// --- SYSTÈMES ---
 let dashCooldown = 0;
 let lastLeftTap = 0, lastRightTap = 0;
 let leftKeyHeldLast = false, rightKeyHeldLast = false;
@@ -762,7 +754,7 @@ function InputSystem(dt) {
 
         if (targetVx === 0 && Math.abs(input.tiltX) > 0.05) targetVx = input.tiltX;
 
-        // Visual dash effect at high speeds
+        // Effet de dash visuel à grande vitesse
         if (Math.abs(v.vx) > MAX_SPEED * 1.1) {
             spawnParticles(t.x + t.w/2, t.y + t.h/2, '#00e5ff', 2, 50);
         }
@@ -793,17 +785,17 @@ function PhysicsSystem(dt) {
         let t = e.getComponent('transform');
         let v = e.getComponent('velocity');
 
-        // Player Gravity vs Rocket
+        // Gravité normale ou poussée fusée
         let inRocketDelay = e.hasComponent('player') && e.getComponent('player').rocketTime > 0;
 
         if (e.hasComponent('gravity') && !inRocketDelay) {
             let activeGravity = e.getComponent('gravity').force;
-            if (cameraY < -15000) { // Deep space zero-g fluctuations!
+            if (cameraY < -15000) { // Fluctuations de gravité en espace profond
                  activeGravity = 1200 + Math.sin(performance.now() / 1500) * 800;
                  if (activeGravity < 800) activeGravity = 800; // soft cap
             }
             v.vy += activeGravity * dt;
-            if (v.vy > 1500) v.vy = 1500; // Keep terminal velocity to prevent phasing through platforms
+            if (v.vy > 1500) v.vy = 1500; // Vitesse terminale pour éviter de traverser les plateformes
         } else if (inRocketDelay) {
             v.vy = -1800;
         }
@@ -811,7 +803,7 @@ function PhysicsSystem(dt) {
         t.x += v.vx * dt;
         t.y += v.vy * dt;
 
-        // Player Constraints & Camera
+        // Contraintes du joueur et suivi caméra
         if (e.hasComponent('player')) {
             if (t.x > cw) t.x = -t.w;
             if (t.x + t.w < 0) t.x = cw;
@@ -824,7 +816,7 @@ function PhysicsSystem(dt) {
             }
         }
 
-        // Moving/Ghost Platform Handling & Timers
+        // Gestion des plateformes mobiles/fantômes
         if (e.hasComponent('platform')) {
             let pLogic = e.getComponent('platform');
             if (pLogic.type === 6) {
@@ -865,7 +857,6 @@ function CollisionSystem(dt) {
     let pV = pEnt.getComponent('velocity');
     let pLogic = pEnt.getComponent('player');
 
-    // Bonuses
     getEntities(['bonus', 'transform']).forEach(bEnt => {
         let bT = bEnt.getComponent('transform');
         let bType = bEnt.getComponent('bonus').type;
@@ -911,7 +902,6 @@ function CollisionSystem(dt) {
         }
     });
 
-    // Hazards (Meteors)
     getEntities(['hazard', 'transform']).forEach(h => {
         let hT = h.getComponent('transform');
         let shrinkHitbox = {x: hT.x+4, y: hT.y+4, w: hT.w-8, h: hT.h-8};
@@ -926,14 +916,13 @@ function CollisionSystem(dt) {
         }
     });
 
-    // Platforms
     getEntities(['platform', 'transform']).forEach(plat => {
         let platLogic = plat.getComponent('platform');
         if (platLogic.broken || (platLogic.type === 6 && !platLogic.active)) return;
         let pt = plat.getComponent('transform');
 
-        // Spike collision (death only when landing on top) 
-        let spikeHitbox = { x: pt.x + 4, y: pt.y + 4, w: pt.w - 8, h: pt.h - 4 }; // Forgiving hitbox
+        // Collision pique — mort uniquement en tombant dessus
+        let spikeHitbox = { x: pt.x + 4, y: pt.y + 4, w: pt.w - 8, h: pt.h - 4 }; // Hitbox indulgente
         if (platLogic.type === 3 && aabb(pT, spikeHitbox)) {
             if (pLogic.rocketTime > 0) {
                 platLogic.broken = true;
@@ -948,7 +937,7 @@ function CollisionSystem(dt) {
             }
         }
 
-        // Normal Jump (only when falling) - sweeping collision to prevent phasing
+        // Saut normal — collision balayée pour éviter le phasing
         if (pV.vy > 0 && pLogic.rocketTime <= 0 && platLogic.type !== 3) {
             let prevY = pT.y - pV.vy * dt;
             let sweepBox = { x: pT.x, y: prevY, w: pT.w, h: pT.h + (pT.y - prevY) };
@@ -957,7 +946,7 @@ function CollisionSystem(dt) {
                 if (prevBottom <= pt.y + 24) {
                     pT.y = pt.y - pT.h; // snap exact
                     
-                    // Perfect Jump Check!
+                    // Détection du saut parfait (atterrissage sur le bord de la plateforme)
                     let distToLeft = Math.abs((pT.x + pT.w) - pt.x);
                     let distToRight = Math.abs(pT.x - (pt.x + pt.w));
                     let isPerfect = distToLeft < 15 || distToRight < 15;
@@ -977,8 +966,8 @@ function CollisionSystem(dt) {
                         spawnParticles(pT.x + pT.w / 2, pT.y + pT.h, '#fff', 5, 80);
                     }
                     
-                    if (platLogic.type === 4) { pV.vx -= 1500; spawnParticles(pT.x + pT.w / 2, pT.y + pT.h, '#fff', 10, 150); } // Conveyor L
-                    if (platLogic.type === 5) { pV.vx += 1500; spawnParticles(pT.x + pT.w / 2, pT.y + pT.h, '#fff', 10, 150); } // Conveyor R
+                    if (platLogic.type === 4) { pV.vx -= 1500; spawnParticles(pT.x + pT.w / 2, pT.y + pT.h, '#fff', 10, 150); }
+                    if (platLogic.type === 5) { pV.vx += 1500; spawnParticles(pT.x + pT.w / 2, pT.y + pT.h, '#fff', 10, 150); }
 
                     if (platLogic.type === 2) {
                         platLogic.broken = true;
@@ -1000,7 +989,7 @@ function SpawnerSystem() {
         let baseY = 80;
         let randomY = 60 + (difficulty * 120);
         let gapY = baseY + Math.random() * randomY;
-        if (gapY > 220) gapY = 220; // Reduced max jump gap for mobile balancing
+        if (gapY > 220) gapY = 220;
 
         highestPlatY -= gapY;
 
@@ -1044,14 +1033,13 @@ function SpawnerSystem() {
             flyingEnemy.addComponent(EnemyCmp('shooter', 1));
             flyingEnemy.addComponent(PatrolCmp(x, 80, 100)); // range 80, speed 100
             addEntity(flyingEnemy);
-            
-            // Spawn safe platform beneath it
+
             let safePlat = new Entity();
             safePlat.addComponent(Transform(x, highestPlatY, w, h));
             safePlat.addComponent(PlatformCmp(0));
             safePlat.addComponent(Velocity(0, 0));
             addEntity(safePlat);
-            continue; // Skip the rest of the generic spawner loops for this altitude
+            continue;
         }
 
         let plat = new Entity();
@@ -1061,7 +1049,7 @@ function SpawnerSystem() {
         if (type === 1) plat.getComponent('velocity').vx = plat.getComponent('platform').speedX;
         addEntity(plat);
 
-        // Provide a safe alternative path on the same level if it's a spike
+        // Chemin alternatif sûr au même niveau pour chaque pique
         if (type === 3) {
             let safeX = x + w + 60;
             if (safeX + w > cw) safeX = x - w - 60;
@@ -1074,7 +1062,7 @@ function SpawnerSystem() {
             addEntity(safePlat);
         }
 
-        // Spawn bonus
+        // Génération de bonus sur la plateforme
         if (Math.random() < 0.2 && type !== 3) {
             let bType = 0;
             let br = Math.random();
@@ -1091,7 +1079,7 @@ function SpawnerSystem() {
     }
 
     let isSpace = highestPlatY < -15000;
-    if (isSpace && Math.random() < 0.005) { // Reduced spawn rate significantly
+    if (isSpace && Math.random() < 0.005) { // Météores rares en espace pour ne pas surcharger
         let m = new Entity();
         m.addComponent(Transform(Math.random() * cw, cameraY - ch, 20, 40));
         m.addComponent(Velocity((Math.random()-0.5) * 50, 300 + Math.random() * 200)); // Much slower horizontal and vertical speed
@@ -1104,12 +1092,11 @@ function EnemySystem(dt) {
     let pEnt = getEntities(['player', 'transform'])[0];
     let pt = pEnt ? pEnt.getComponent('transform') : null;
 
-    // Moving Enemies
     getEntities(['enemy', 'transform', 'velocity']).forEach(e => {
         let enemy = e.getComponent('enemy');
         let t = e.getComponent('transform');
         
-        // Patrol Logic
+        // Patrouille de l'ennemi
         if (e.hasComponent('patrol')) {
             let p = e.getComponent('patrol');
             let v = e.getComponent('velocity');
@@ -1119,14 +1106,15 @@ function EnemySystem(dt) {
             else if (Math.abs(t.x - p.startX) > p.range) p.direction *= -1;
         }
 
-        // Shooting Behavior
+        // Comportement de tir
         if (enemy.type === 'shooter' && pt) {
             enemy.attackTimer -= dt;
             let dx = Math.abs(t.x - pt.x);
             let dy = pt.y - t.y; 
 
             if (enemy.attackTimer <= 0 && dx < Math.max(150, cw) && dy > 0 && dy < ch * 0.8) {
-                enemy.attackTimer = 1.5 + Math.random(); // Cooldown
+                // Délai aléatoire entre les tirs
+                enemy.attackTimer = 1.5 + Math.random();
                 
                 let proj = new Entity();
                 proj.addComponent(Transform(t.x + t.w/2 - 6, t.y + t.h, 12, 12));
@@ -1134,43 +1122,42 @@ function EnemySystem(dt) {
                 proj.addComponent(ProjectileCmp(1, 'enemy'));
                 proj.addComponent({name: 'hazard'}); 
                 addEntity(proj);
-                SFX.rocket(); // Use rocket sound as shot (placeholder)
+                SFX.rocket();
             }
         }
     });
 
-    // Clean up projectiles
+    // Expiration des projectiles
     getEntities(['projectile', 'transform']).forEach(e => {
         let proj = e.getComponent('projectile');
         proj.life -= dt;
         if (proj.life <= 0) removeEntity(e);
-        
-        // Also check if offscreen
+
         let t = e.getComponent('transform');
         if (t.y > cameraY + ch + 100) removeEntity(e);
     });
 }
 
-// --- RENDER SYSTEM ---
+// --- RENDU ---
 function renderSystem(dt) {
     ctx.clearRect(0, 0, cw, ch);
 
-    // Dynamic Sky Gradient based on altitude
+    // Dégradé de ciel dynamique selon l'altitude
     let currentAltMeters = Math.max(0, Math.floor(-cameraY / 10));
     let r1, g1, b1, r2, g2, b2;
     if (currentAltMeters < 3000) {
         let p = currentAltMeters / 3000;
-        r1 = lerpColor(79, 255, p); g1 = lerpColor(195, 112, p); b1 = lerpColor(247, 67, p); // Cyan to Orange Red
+        r1 = lerpColor(79, 255, p); g1 = lerpColor(195, 112, p); b1 = lerpColor(247, 67, p);
         r2 = lerpColor(225, 255, p); g2 = lerpColor(245, 193, p); b2 = lerpColor(254, 7, p);
     } else if (currentAltMeters < 10000) {
         let p = (currentAltMeters - 3000) / 7000;
-        r1 = lerpColor(255, 10, p); g1 = lerpColor(112, 10, p); b1 = lerpColor(67, 30, p); // Sunset to Deep Space
+        r1 = lerpColor(255, 10, p); g1 = lerpColor(112, 10, p); b1 = lerpColor(67, 30, p);
         r2 = lerpColor(255, 10, p); g2 = lerpColor(193, 10, p); b2 = lerpColor(7, 40, p);
     } else {
-        r1 = 10; g1 = 10; b1 = 30; r2 = 10; g2 = 10; b2 = 40; // Deep Space
+        r1 = 10; g1 = 10; b1 = 30; r2 = 10; g2 = 10; b2 = 40;
     }
 
-    let currentAlt = Math.max(0, -cameraY); // For parallax items
+    let currentAlt = Math.max(0, -cameraY);
 
     let bandCount = 10;
     let bandHeight = Math.ceil(ch / bandCount);
@@ -1183,7 +1170,7 @@ function renderSystem(dt) {
         ctx.fillRect(0, i * bandHeight, cw, bandHeight);
     }
 
-    // Fade in stars for Space!
+    // Étoiles qui apparaissent en espace profond
     if (r1 < 100) {
         let starAlpha = 1 - (r1 / 100);
         ctx.globalAlpha = starAlpha;
@@ -1191,24 +1178,23 @@ function renderSystem(dt) {
         stars.forEach(s => {
             let sx = s.x % cw;
             let sy = ((s.y - cameraY*0.05) % ch + ch) % ch;
-            if (Math.random() > 0.99) ctx.fillStyle = '#00e5ff'; // twinkling
+            if (Math.random() > 0.99) ctx.fillStyle = '#00e5ff';
             else ctx.fillStyle = '#fff';
             ctx.fillRect(sx, sy, s.size, s.size);
         });
         ctx.globalAlpha = 1;
     }
 
-    // Deep Parallax Clouds
+    // Rendu des nuages en parallaxe
     clouds.forEach(c => {
         let sx = c.x % (cw + 200) - 100;
         let depthSpeed = c.speed * 0.15;
         let period = ch + 400;
         let sy = ((c.y - cameraY * depthSpeed) % period + period) % period - 200;
 
-        let cloudAlpha = c.opacity * Math.max(0, (r1 - 50) / 205); // Fade clouds at night
+        let cloudAlpha = c.opacity * Math.max(0, (r1 - 50) / 205);
         ctx.globalAlpha = cloudAlpha;
 
-        // Slight drop shadow for volume
         ctx.fillStyle = 'rgba(0,0,0,0.05)';
         ctx.fillRect(sx, sy + 4, c.w, c.h);
         ctx.fillRect(sx + c.w * 0.1, sy - c.h * 0.4 + 4, c.w * 0.4, c.h * 0.4);
@@ -1216,7 +1202,6 @@ function renderSystem(dt) {
         ctx.fillRect(sx + c.w * 0.8, sy - c.h * 0.2 + 4, c.w * 0.3, c.h * 0.2);
 
         ctx.fillStyle = '#ffffff';
-        // Draw pixelated chunky cloud
         ctx.fillRect(sx, sy, c.w, c.h);
         ctx.fillRect(sx + c.w * 0.1, sy - c.h * 0.4, c.w * 0.4, c.h * 0.4);
         ctx.fillRect(sx + c.w * 0.4, sy - c.h * 0.7, c.w * 0.5, c.h * 0.7);
@@ -1228,7 +1213,7 @@ function renderSystem(dt) {
 
     let isMobile = cw < 600;
 
-    // Factory Pipes (5000-10000)
+    // Décor de tuyaux d'usine (5000–10000m)
     if (currentAlt >= 3000 && currentAlt < 12000) {
         let pipeAlpha = currentAlt < 5000 ? (currentAlt-3000)/2000 : (currentAlt > 10000 ? (12000-currentAlt)/2000 : 1);
         ctx.globalAlpha = Math.max(0, Math.min(1, pipeAlpha));
@@ -1245,7 +1230,7 @@ function renderSystem(dt) {
         if (Math.random() > 0.95 && pipeAlpha > 0.5) spawnParticles(px1+30, ch - 300, '#8bc34a', 1, 50);
     }
 
-    // Giant Moon (10000-15000)
+    // Lune géante en arrière-plan (10000–15000m)
     if (currentAlt >= 8000 && currentAlt < 18000) {
         let moonAlpha = currentAlt < 10000 ? (currentAlt-8000)/2000 : (currentAlt > 16000 ? (18000-currentAlt)/2000 : 1);
         ctx.globalAlpha = Math.max(0, Math.min(1, moonAlpha));
@@ -1281,7 +1266,7 @@ function renderSystem(dt) {
     ctx.save();
     ctx.translate(0, -parallaxY);
 
-    // Calculate centered tower dimensions
+    // Calcul des dimensions de la tour centrée
     let towerColumns = Math.max(1, Math.floor((cw - 40) / (windowWidth + pillarWidth)) - 1);
     let towerWidth = towerColumns * windowWidth + (towerColumns + 1) * pillarWidth;
     let towerX = (cw - towerWidth) / 2;
@@ -1292,11 +1277,9 @@ function renderSystem(dt) {
     let windowFrame = '#e1ddc6';
     let blindColor = '#efebd8';
 
-    // Base wall
     ctx.fillStyle = windowFrame;
     ctx.fillRect(towerX, startY, towerWidth, endY - startY);
 
-    // Draw floors
     for (let y = startY; y < endY; y += floorHeight) {
         let wy = y + bandHeight;
         let wh = floorHeight - bandHeight;
@@ -1306,11 +1289,9 @@ function renderSystem(dt) {
             let rnd = Math.sin((y + x) * 123.456) * 10000;
             let r = rnd - Math.floor(rnd);
 
-            // Glass
             ctx.fillStyle = windowGlass;
             ctx.fillRect(x + 2, wy + 2, windowWidth - 4, wh - 4);
 
-            // Blinds
             if (r > 0.4) {
                 let blindH = (r - 0.4) / 0.6 * (wh - 4);
                 ctx.fillStyle = isMobile ? '#d4d0be' : blindColor; // slightly darker block for mobile
@@ -1325,17 +1306,14 @@ function renderSystem(dt) {
             }
         }
 
-        // Horizontal band
         ctx.fillStyle = concDark;
         ctx.fillRect(towerX, y, towerWidth, bandHeight);
     }
 
-    // Vertical pillars
     for (let col = 0; col <= towerColumns; col++) {
         let x = towerX + col * (windowWidth + pillarWidth);
         ctx.fillStyle = concLight;
         ctx.fillRect(x, startY, pillarWidth, endY - startY);
-        // Shadow & Highlight
         ctx.fillStyle = 'rgba(0,0,0,0.2)';
         ctx.fillRect(x - 5, startY, 5, endY - startY);
         ctx.fillStyle = 'rgba(255,255,255,0.2)';
@@ -1349,7 +1327,7 @@ function renderSystem(dt) {
     ctx.restore();
     ctx.save();
 
-    // Screen Shake Apply
+    // Application du tremblement d'écran
     if (screenShake > 0) {
         let sx = (Math.random() - 0.5) * screenShake * 2;
         let sy = (Math.random() - 0.5) * screenShake * 2;
